@@ -3,6 +3,7 @@ package lock
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -39,10 +40,13 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Save writes cfg to path.
+// Save writes cfg to path. Creates parent directories as needed.
 func Save(path string, cfg *Config) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
