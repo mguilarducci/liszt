@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
+	"github.com/mguilarducci/liszt/internal/lock"
 	"github.com/mguilarducci/liszt/internal/manifest"
 	"github.com/mguilarducci/liszt/internal/marketplace"
 	"github.com/mguilarducci/liszt/internal/repos"
-	"github.com/pelletier/go-toml/v2"
 )
 
 const (
@@ -23,21 +23,6 @@ const (
 )
 
 // ---------- types ----------
-
-// lockEntry = resolved state at install time (committed to liszt.lock).
-type lockEntry struct {
-	Kind   string `toml:"kind"`
-	Flavor string `toml:"flavor"`
-	Slug   string `toml:"slug"`
-	Plugin string `toml:"plugin"`
-	Repo   string `toml:"repo"`
-	SHA    string `toml:"sha"`
-	Path   string `toml:"path"`
-}
-
-type lockConfig struct {
-	Locked []lockEntry `toml:"locked"`
-}
 
 // item is a discovered resource: slug (display id) + path (relative to plugin root, "" if config-only).
 type item struct {
@@ -387,20 +372,20 @@ func resourceCmd(kind string, args []string) {
 // ---------- outdated ----------
 
 func outdatedCmd(_ []string) {
-	cfg, err := loadLock(lockFile)
+	cfg, err := lock.Load(lockFile)
 	must(err)
-	repos, err := repos.Load(reposFile)
+	reposCfg, err := repos.Load(reposFile)
 	must(err)
 
 	// Cache remote HEAD per repo (one git ls-remote per repo).
 	remoteHead := map[string]string{}
 	urlFor := map[string]string{}
-	for _, r := range repos.Repos {
+	for _, r := range reposCfg.Repos {
 		urlFor[r.Name] = r.URL
 	}
 
 	type drift struct {
-		entry  lockEntry
+		entry  lock.Entry
 		latest string
 	}
 	var drifts []drift
@@ -591,48 +576,15 @@ func recordInstall(m match, requestedSlug string) {
 	must(manifest.Save(manifestFile, man))
 
 	// 2. Lock (resolved): records exact source + SHA at install time.
-	lock, err := loadLock(lockFile)
+	lockCfg, err := lock.Load(lockFile)
 	must(err)
-	lock.upsert(lockEntry{
+	lockCfg.Upsert(lock.Entry{
 		Kind: m.kind, Flavor: m.flavor, Slug: m.slug, Plugin: m.pluginName,
 		Repo: m.repoName, SHA: m.sha, Path: m.path,
 	})
-	must(saveLock(lockFile, lock))
+	must(lock.Save(lockFile, lockCfg))
 
 	fmt.Printf("installed %s %s [%s] (from %s @ %s)\n", m.kind, m.slug, m.flavor, m.repoName, m.sha[:12])
-}
-
-func loadLock(path string) (*lockConfig, error) {
-	cfg := &lockConfig{}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
-		return nil, err
-	}
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return cfg, nil
-}
-
-func saveLock(path string, cfg *lockConfig) error {
-	data, err := toml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func (c *lockConfig) upsert(e lockEntry) {
-	for i, x := range c.Locked {
-		if x.Kind == e.Kind && x.Slug == e.Slug && x.Plugin == e.Plugin && x.Flavor == e.Flavor {
-			c.Locked[i] = e
-			return
-		}
-	}
-	c.Locked = append(c.Locked, e)
 }
 
 // ---------- shared helpers ----------
