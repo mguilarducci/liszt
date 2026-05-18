@@ -79,6 +79,51 @@ func pluginSourcePath(src any) string {
 	return ""
 }
 
+// PluginSource is the parsed form of Plugin.Source.
+// Exactly one of Subdir / External is set.
+type PluginSource struct {
+	Subdir   string
+	External *ExternalSource
+}
+
+// ExternalSource describes a "git-subdir" plugin source.
+type ExternalSource struct {
+	URL  string
+	Path string
+	Ref  string
+	SHA  string
+}
+
+// ParseSource decodes a Plugin.Source value.
+//
+//	string "./plugins/foo"                                  -> Subdir
+//	{ "path": "plugins/foo" }                               -> Subdir
+//	{ "source": "git-subdir", "url", "path", "ref", "sha" } -> External
+func ParseSource(raw any) (PluginSource, error) {
+	switch v := raw.(type) {
+	case string:
+		return PluginSource{Subdir: strings.TrimPrefix(v, "./")}, nil
+	case map[string]any:
+		if src, _ := v["source"].(string); src == "git-subdir" {
+			ext := &ExternalSource{}
+			ext.URL, _ = v["url"].(string)
+			ext.Path, _ = v["path"].(string)
+			ext.Ref, _ = v["ref"].(string)
+			ext.SHA, _ = v["sha"].(string)
+			if ext.URL == "" || ext.SHA == "" {
+				return PluginSource{}, fmt.Errorf("git-subdir source missing url or sha")
+			}
+			return PluginSource{External: ext}, nil
+		}
+		if p, ok := v["path"].(string); ok {
+			return PluginSource{Subdir: strings.TrimPrefix(p, "./")}, nil
+		}
+	case nil:
+		return PluginSource{}, nil
+	}
+	return PluginSource{}, fmt.Errorf("unsupported plugin source: %T", raw)
+}
+
 func readFirstWithSource(root string, paths ...string) ([]byte, string, bool, error) {
 	for _, p := range paths {
 		data, err := os.ReadFile(filepath.Join(root, p))
