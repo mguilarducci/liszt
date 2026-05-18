@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -286,13 +285,13 @@ func repoCmd(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: liszt repo add <github-url>")
 		os.Exit(2)
 	}
-	owner, repo, err := parseGitHubURL(args[1])
+	owner, repo, err := gitx.ParseGitHubURL(args[1])
 	must(err)
 
-	dest := repoPath(owner, repo)
-	must(ensureClone(args[1], dest))
+	dest := gitx.RepoPath(cacheDir, owner, repo)
+	must(gitx.EnsureClone(args[1], dest))
 
-	sha, err := readHeadSHA(dest)
+	sha, err := gitx.HeadSHA(dest)
 	must(err)
 	if _, _, err := readMarketplace(dest); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
@@ -325,12 +324,12 @@ func pluginCmd(args []string) {
 		return
 	}
 	for i, r := range cfg.Repos {
-		owner, repo, err := parseGitHubURL(r.URL)
+		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
 			continue
 		}
-		mp, _, err := readMarketplace(repoPath(owner, repo))
+		mp, _, err := readMarketplace(gitx.RepoPath(cacheDir, owner, repo))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
 			continue
@@ -379,11 +378,11 @@ func resourceCmd(kind string, args []string) {
 	matched := false
 	first := true
 	for _, r := range cfg.Repos {
-		owner, repo, err := parseGitHubURL(r.URL)
+		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
 			continue
 		}
-		root := repoPath(owner, repo)
+		root := gitx.RepoPath(cacheDir, owner, repo)
 		mp, _, err := readMarketplace(root)
 		if err != nil {
 			continue
@@ -449,7 +448,7 @@ func outdatedCmd(_ []string) {
 				unknown++
 				continue
 			}
-			sha, err := gitLsRemoteHead(url)
+			sha, err := gitx.LsRemoteHead(url)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warn: ls-remote %s: %v\n", e.Repo, err)
 				unknown++
@@ -476,18 +475,6 @@ func outdatedCmd(_ []string) {
 		fmt.Printf("    locked:  %s\n", d.entry.SHA[:12])
 		fmt.Printf("    remote:  %s\n", d.latest[:12])
 	}
-}
-
-func gitLsRemoteHead(url string) (string, error) {
-	out, err := exec.Command("git", "ls-remote", url, "HEAD").Output()
-	if err != nil {
-		return "", err
-	}
-	line := strings.TrimSpace(string(out))
-	if i := strings.IndexAny(line, " \t"); i > 0 {
-		return line[:i], nil
-	}
-	return "", fmt.Errorf("unexpected ls-remote output: %q", line)
 }
 
 // ---------- install ----------
@@ -543,11 +530,11 @@ func resolveSlug(kind, raw string) ([]match, error) {
 
 	var out []match
 	for _, r := range cfg.Repos {
-		owner, repo, err := parseGitHubURL(r.URL)
+		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
 			continue
 		}
-		root := repoPath(owner, repo)
+		root := gitx.RepoPath(cacheDir, owner, repo)
 		mp, _, err := readMarketplace(root)
 		if err != nil {
 			continue
@@ -600,11 +587,11 @@ func installPlugin(slug, flavor string) {
 	cfg, err := loadRepos(reposFile)
 	must(err)
 	for _, r := range cfg.Repos {
-		owner, repo, err := parseGitHubURL(r.URL)
+		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
 			continue
 		}
-		root := repoPath(owner, repo)
+		root := gitx.RepoPath(cacheDir, owner, repo)
 		mp, _, err := readMarketplace(root)
 		if err != nil {
 			continue
@@ -724,35 +711,7 @@ func printHeader(first *bool, repoName, pluginName, kind string, n int) {
 	fmt.Printf("== %s :: %s (%d %ss) ==\n", repoName, pluginName, n, kind)
 }
 
-// ---------- git / fs helpers ----------
-
-func repoPath(owner, repo string) string {
-	return filepath.Join(cacheDir, owner, repo)
-}
-
-func ensureClone(url, dest string) error {
-	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
-		return err
-	}
-	cmd := exec.Command("git", "clone", "--depth=1", url, dest)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git clone failed: %w", err)
-	}
-	return nil
-}
-
-func readHeadSHA(dir string) (string, error) {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", fmt.Errorf("git rev-parse: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
-}
+// ---------- fs helpers ----------
 
 func readMarketplace(repoRoot string) (*marketplace, string, error) {
 	data, src, ok, err := readFirstWithSource(repoRoot,
@@ -803,21 +762,6 @@ func pluginSourcePath(src any) string {
 		}
 	}
 	return ""
-}
-
-func parseGitHubURL(raw string) (string, string, error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return "", "", fmt.Errorf("invalid url: %w", err)
-	}
-	if u.Host != "github.com" {
-		return "", "", fmt.Errorf("only github.com URLs supported, got %q", u.Host)
-	}
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) < 2 {
-		return "", "", fmt.Errorf("URL must include owner/repo")
-	}
-	return parts[0], strings.TrimSuffix(parts[1], ".git"), nil
 }
 
 // ---------- repos.toml ----------
