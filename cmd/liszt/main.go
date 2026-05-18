@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +11,7 @@ import (
 	"github.com/mguilarducci/liszt/internal/manifest"
 	"github.com/mguilarducci/liszt/internal/marketplace"
 	"github.com/mguilarducci/liszt/internal/repos"
+	"github.com/mguilarducci/liszt/internal/resource"
 )
 
 const (
@@ -21,175 +20,6 @@ const (
 	lockFile     = "liszt.lock"
 	cacheDir     = "tmp"
 )
-
-// ---------- types ----------
-
-// item is a discovered resource: slug (display id) + path (relative to plugin root, "" if config-only).
-type item struct {
-	Slug  string
-	Path  string
-	Extra string // optional display detail (e.g. hook event count)
-}
-
-// kindDef describes how to discover items of a given resource kind inside a plugin.
-type kindDef struct {
-	list func(pluginRoot string) ([]item, error)
-}
-
-var kinds = map[string]kindDef{
-	"skill":   {list: listSkills},
-	"agent":   {list: listAgents},
-	"command": {list: listCommands},
-	"hook":    {list: listHooks},
-	"mcp":     {list: listMCP},
-	"lsp":     {list: listLSP},
-}
-
-// skills: <plugin>/skills/<name>/SKILL.md (recursive). Artifact = the skill dir.
-func listSkills(root string) ([]item, error) {
-	return walkItems(root, "skills",
-		func(d fs.DirEntry) bool { return !d.IsDir() && strings.EqualFold(d.Name(), "SKILL.md") },
-		func(rel string) string { return filepath.ToSlash(filepath.Dir(rel)) },
-		filepath.Dir, // path = "skills/<name>"
-	)
-}
-
-// agents: <plugin>/agents/<name>.md (Claude) or <name>.agent.md (Copilot). Artifact = the file.
-func listAgents(root string) ([]item, error) {
-	return walkItems(root, "agents", isMarkdownLeaf, agentSlug, identityPath)
-}
-
-func agentSlug(rel string) string {
-	rel = filepath.ToSlash(rel)
-	rel = strings.TrimSuffix(rel, ".agent.md")
-	rel = strings.TrimSuffix(rel, ".md")
-	return rel
-}
-
-// commands: <plugin>/commands/<name>.md (flat). Artifact = the file.
-func listCommands(root string) ([]item, error) {
-	return walkItems(root, "commands", isMarkdownLeaf, trimExt, identityPath)
-}
-
-func identityPath(p string) string { return p }
-
-// hooks: hooks/hooks.json (Claude) or hooks.json (Copilot)
-func listHooks(root string) ([]item, error) {
-	candidates := []string{"hooks/hooks.json", "hooks.json"}
-	data, src, ok, err := readFirstWithSource(root, candidates...)
-	if err != nil || !ok {
-		return nil, err
-	}
-	var doc struct {
-		Hooks map[string][]any `json:"hooks"`
-	}
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse hooks.json: %w", err)
-	}
-	var out []item
-	for event, entries := range doc.Hooks {
-		out = append(out, item{
-			Slug:  event,
-			Path:  src + "#" + event,
-			Extra: fmt.Sprintf("%d", len(entries)),
-		})
-	}
-	return out, nil
-}
-
-// mcp: .claude-plugin/mcp.json (Claude) | .mcp.json (Copilot root) | .github/mcp.json (Copilot alt)
-func listMCP(root string) ([]item, error) {
-	data, src, ok, err := readFirstWithSource(root, ".claude-plugin/mcp.json", ".mcp.json", ".github/mcp.json")
-	if err != nil || !ok {
-		return nil, err
-	}
-	var doc struct {
-		MCPServers map[string]any `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse mcp.json: %w", err)
-	}
-	var out []item
-	for name := range doc.MCPServers {
-		out = append(out, item{Slug: name, Path: src + "#" + name})
-	}
-	return out, nil
-}
-
-// lsp: lsp.json (Copilot root) | .github/lsp.json
-func listLSP(root string) ([]item, error) {
-	data, src, ok, err := readFirstWithSource(root, "lsp.json", ".github/lsp.json")
-	if err != nil || !ok {
-		return nil, err
-	}
-	var doc struct {
-		Servers map[string]any `json:"servers"`
-	}
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse lsp.json: %w", err)
-	}
-	var out []item
-	for name := range doc.Servers {
-		out = append(out, item{Slug: name, Path: src + "#" + name})
-	}
-	return out, nil
-}
-
-
-func isMarkdownLeaf(d fs.DirEntry) bool {
-	return !d.IsDir() && strings.HasSuffix(strings.ToLower(d.Name()), ".md")
-}
-
-func trimExt(rel string) string {
-	rel = filepath.ToSlash(rel)
-	return strings.TrimSuffix(rel, filepath.Ext(rel))
-}
-
-// walkItems walks <pluginRoot>/<subdir> and returns items.
-// match selects leaf files; slugOf maps the file's rel path to a slug.
-// item.Path is relative to plugin root (subdir + rel).
-// walkItems walks <pluginRoot>/<subdir>. For each leaf matching `match`:
-// - slugOf(rel)         → item.Slug   (rel = path under subdir)
-// - pathOf(pathInPlugin) → item.Path  (pathInPlugin = subdir-prefixed path within plugin root)
-func walkItems(pluginRoot, subdir string, match func(fs.DirEntry) bool, slugOf func(rel string) string, pathOf func(pathInPlugin string) string) ([]item, error) {
-	base := filepath.Join(pluginRoot, subdir)
-	if _, err := os.Stat(base); os.IsNotExist(err) {
-		return nil, nil
-	}
-	var out []item
-	err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && (d.Name() == ".git" || d.Name() == "node_modules") {
-			return filepath.SkipDir
-		}
-		if match(d) {
-			rel, _ := filepath.Rel(base, path)
-			pathInPlugin, _ := filepath.Rel(pluginRoot, path)
-			out = append(out, item{
-				Slug: slugOf(rel),
-				Path: filepath.ToSlash(pathOf(pathInPlugin)),
-			})
-		}
-		return nil
-	})
-	return out, err
-}
-
-// readFirstWithSource extends readFirst with the matched path (relative to root).
-func readFirstWithSource(root string, paths ...string) ([]byte, string, bool, error) {
-	for _, p := range paths {
-		data, err := os.ReadFile(filepath.Join(root, p))
-		if err == nil {
-			return data, p, true, nil
-		}
-		if !os.IsNotExist(err) {
-			return nil, "", false, err
-		}
-	}
-	return nil, "", false, nil
-}
 
 // ---------- entry ----------
 
@@ -209,7 +39,7 @@ func main() {
 	case "outdated":
 		outdatedCmd(args)
 	default:
-		if _, ok := kinds[cmd]; ok {
+		if _, ok := resource.Get(cmd); ok {
 			resourceCmd(cmd, args)
 			return
 		}
@@ -323,7 +153,7 @@ func resourceCmd(kind string, args []string) {
 		}
 	}
 
-	def := kinds[kind]
+	def, _ := resource.Get(kind)
 	cfg, err := repos.Load(reposFile)
 	must(err)
 
@@ -344,7 +174,7 @@ func resourceCmd(kind string, args []string) {
 				continue
 			}
 			pluginRoot := filepath.Join(root, mp.ResolvePluginPath(p))
-			items, err := def.list(pluginRoot)
+			items, err := def.List(pluginRoot)
 			if err != nil || len(items) == 0 {
 				if pluginName != "" && p.Name == pluginName {
 					matched = true
@@ -475,7 +305,7 @@ func resolveSlug(kind, raw string) ([]match, error) {
 	if err != nil {
 		return nil, err
 	}
-	def, ok := kinds[kind]
+	def, ok := resource.Get(kind)
 	if !ok {
 		return nil, fmt.Errorf("unknown kind %q", kind)
 	}
@@ -497,7 +327,7 @@ func resolveSlug(kind, raw string) ([]match, error) {
 			}
 			rel := mp.ResolvePluginPath(p)
 			pluginRoot := filepath.Join(root, rel)
-			items, err := def.list(pluginRoot)
+			items, err := def.List(pluginRoot)
 			if err != nil {
 				continue
 			}
