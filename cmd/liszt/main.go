@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
+	"github.com/mguilarducci/liszt/internal/manifest"
 	"github.com/mguilarducci/liszt/internal/marketplace"
 	"github.com/mguilarducci/liszt/internal/repos"
 	"github.com/pelletier/go-toml/v2"
@@ -22,17 +23,6 @@ const (
 )
 
 // ---------- types ----------
-
-// manifestEntry = declarative want (committed to liszt.toml).
-type manifestEntry struct {
-	Kind   string `toml:"kind"`
-	Slug   string `toml:"slug"`   // may be qualified "<plugin>:<slug>"
-	Flavor string `toml:"flavor"` // claude | copilot
-}
-
-type manifestConfig struct {
-	Items []manifestEntry `toml:"items"`
-}
 
 // lockEntry = resolved state at install time (committed to liszt.lock).
 type lockEntry struct {
@@ -595,10 +585,10 @@ func installPlugin(slug, flavor string) {
 
 func recordInstall(m match, requestedSlug string) {
 	// 1. Manifest (declarative): preserve user-typed slug (possibly qualified).
-	man, err := loadManifest(manifestFile)
+	man, err := manifest.Load(manifestFile)
 	must(err)
-	man.upsert(manifestEntry{Kind: m.kind, Slug: requestedSlug, Flavor: m.flavor})
-	must(saveManifest(manifestFile, man))
+	man.Upsert(manifest.Entry{Kind: m.kind, Slug: requestedSlug, Flavor: m.flavor})
+	must(manifest.Save(manifestFile, man))
 
 	// 2. Lock (resolved): records exact source + SHA at install time.
 	lock, err := loadLock(lockFile)
@@ -610,39 +600,6 @@ func recordInstall(m match, requestedSlug string) {
 	must(saveLock(lockFile, lock))
 
 	fmt.Printf("installed %s %s [%s] (from %s @ %s)\n", m.kind, m.slug, m.flavor, m.repoName, m.sha[:12])
-}
-
-func loadManifest(path string) (*manifestConfig, error) {
-	cfg := &manifestConfig{}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
-		return nil, err
-	}
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return cfg, nil
-}
-
-func saveManifest(path string, cfg *manifestConfig) error {
-	data, err := toml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func (c *manifestConfig) upsert(e manifestEntry) {
-	for i, x := range c.Items {
-		if x.Kind == e.Kind && x.Slug == e.Slug && x.Flavor == e.Flavor {
-			c.Items[i] = e
-			return
-		}
-	}
-	c.Items = append(c.Items, e)
 }
 
 func loadLock(path string) (*lockConfig, error) {
