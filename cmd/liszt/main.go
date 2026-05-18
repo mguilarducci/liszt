@@ -3,16 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mguilarducci/liszt/internal/cli"
 	"github.com/mguilarducci/liszt/internal/resource"
-)
-
-const (
-	reposFile    = "repos.toml"
-	manifestFile = "liszt.toml"
-	lockFile     = "liszt.lock"
-	cacheDir     = "tmp"
+	"github.com/mguilarducci/liszt/internal/xdg"
 )
 
 func main() {
@@ -21,7 +16,12 @@ func main() {
 		os.Exit(2)
 	}
 	cmd, args := os.Args[1], os.Args[2:]
-	paths := cli.Paths{Repos: reposFile, Manifest: manifestFile, Lock: lockFile, Cache: cacheDir}
+	paths := cli.Paths{
+		Repos:    filepath.Join(xdg.DataDir(), "repos.toml"),
+		Manifest: "liszt.toml",
+		Lock:     "liszt.lock",
+		Cache:    filepath.Join(xdg.CacheDir(), "repos"),
+	}
 
 	switch cmd {
 	case "repo":
