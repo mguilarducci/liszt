@@ -98,22 +98,45 @@ type ExternalSource struct {
 //
 //	string "./plugins/foo"                                  -> Subdir
 //	{ "path": "plugins/foo" }                               -> Subdir
-//	{ "source": "git-subdir", "url", "path", "ref", "sha" } -> External
+//	{ "source": "git-subdir", "url", "path", "ref", "sha" } -> External (with Path)
+//	{ "source": "url", "url", "sha" }                       -> External (Path empty)
+//	{ "source": "github", "repo", "sha" }                   -> External (Path empty)
 func ParseSource(raw any) (PluginSource, error) {
 	switch v := raw.(type) {
 	case string:
 		return PluginSource{Subdir: strings.TrimPrefix(v, "./")}, nil
 	case map[string]any:
-		if src, _ := v["source"].(string); src == "git-subdir" {
+		src, _ := v["source"].(string)
+		switch src {
+		case "git-subdir":
 			ext := &ExternalSource{}
 			ext.URL, _ = v["url"].(string)
 			ext.Path, _ = v["path"].(string)
+			ext.Path = strings.TrimPrefix(ext.Path, "./")
 			ext.Ref, _ = v["ref"].(string)
 			ext.SHA, _ = v["sha"].(string)
 			if ext.URL == "" || ext.SHA == "" {
 				return PluginSource{}, fmt.Errorf("git-subdir source missing url or sha")
 			}
 			return PluginSource{External: ext}, nil
+		case "url":
+			ext := &ExternalSource{}
+			ext.URL, _ = v["url"].(string)
+			ext.SHA, _ = v["sha"].(string)
+			if ext.URL == "" || ext.SHA == "" {
+				return PluginSource{}, fmt.Errorf("url source missing url or sha")
+			}
+			return PluginSource{External: ext}, nil
+		case "github":
+			repo, _ := v["repo"].(string)
+			sha, _ := v["sha"].(string)
+			if repo == "" || sha == "" {
+				return PluginSource{}, fmt.Errorf("github source missing repo or sha")
+			}
+			return PluginSource{External: &ExternalSource{
+				URL: "https://github.com/" + repo + ".git",
+				SHA: sha,
+			}}, nil
 		}
 		if p, ok := v["path"].(string); ok {
 			return PluginSource{Subdir: strings.TrimPrefix(p, "./")}, nil
