@@ -10,6 +10,7 @@ import (
 
 	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/mguilarducci/liszt/internal/marketplace"
+	"github.com/mguilarducci/liszt/internal/repos"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -21,16 +22,6 @@ const (
 )
 
 // ---------- types ----------
-
-type repoEntry struct {
-	Name string `toml:"name"`
-	URL  string `toml:"url"`
-	SHA  string `toml:"sha"`
-}
-
-type reposConfig struct {
-	Repos []repoEntry `toml:"repos"`
-}
 
 // manifestEntry = declarative want (committed to liszt.toml).
 type manifestEntry struct {
@@ -283,10 +274,10 @@ func repoCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	cfg, err := loadRepos(reposFile)
+	cfg, err := repos.Load(reposFile)
 	must(err)
-	cfg.upsert(repoEntry{Name: owner + "/" + repo, URL: args[1], SHA: sha})
-	must(saveRepos(reposFile, cfg))
+	cfg.Upsert(repos.Entry{Name: owner + "/" + repo, URL: args[1], SHA: sha})
+	must(repos.Save(reposFile, cfg))
 
 	fmt.Printf("added %s/%s @ %s\n", owner, repo, sha[:12])
 }
@@ -303,7 +294,7 @@ func pluginCmd(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: liszt plugin {list | install <slug> --flavor <claude|copilot>}")
 		os.Exit(2)
 	}
-	cfg, err := loadRepos(reposFile)
+	cfg, err := repos.Load(reposFile)
 	must(err)
 	if len(cfg.Repos) == 0 {
 		fmt.Println("no repos. add one with: liszt repo add <url>")
@@ -358,7 +349,7 @@ func resourceCmd(kind string, args []string) {
 	}
 
 	def := kinds[kind]
-	cfg, err := loadRepos(reposFile)
+	cfg, err := repos.Load(reposFile)
 	must(err)
 
 	matched := false
@@ -408,7 +399,7 @@ func resourceCmd(kind string, args []string) {
 func outdatedCmd(_ []string) {
 	cfg, err := loadLock(lockFile)
 	must(err)
-	repos, err := loadRepos(reposFile)
+	repos, err := repos.Load(reposFile)
 	must(err)
 
 	// Cache remote HEAD per repo (one git ls-remote per repo).
@@ -505,7 +496,7 @@ func resolveSlug(kind, raw string) ([]match, error) {
 		wantSlug = raw
 	}
 
-	cfg, err := loadRepos(reposFile)
+	cfg, err := repos.Load(reposFile)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +561,7 @@ func installResource(kind, slug, flavor string) {
 }
 
 func installPlugin(slug, flavor string) {
-	cfg, err := loadRepos(reposFile)
+	cfg, err := repos.Load(reposFile)
 	must(err)
 	for _, r := range cfg.Repos {
 		owner, repo, err := gitx.ParseGitHubURL(r.URL)
@@ -695,41 +686,6 @@ func printHeader(first *bool, repoName, pluginName, kind string, n int) {
 	}
 	*first = false
 	fmt.Printf("== %s :: %s (%d %ss) ==\n", repoName, pluginName, n, kind)
-}
-
-// ---------- repos.toml ----------
-
-func loadRepos(path string) (*reposConfig, error) {
-	cfg := &reposConfig{}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
-		return nil, err
-	}
-	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return cfg, nil
-}
-
-func saveRepos(path string, cfg *reposConfig) error {
-	data, err := toml.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func (c *reposConfig) upsert(e repoEntry) {
-	for i, r := range c.Repos {
-		if r.Name == e.Name {
-			c.Repos[i] = e
-			return
-		}
-	}
-	c.Repos = append(c.Repos, e)
 }
 
 func must(err error) {
