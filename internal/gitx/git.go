@@ -34,6 +34,59 @@ func HeadSHA(dir string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// CloneAtSHA shallow-clones url into dest and checks out sha.
+// Idempotent: if dest already has HEAD == sha, returns nil.
+// On failure, leaves no partial directory behind.
+func CloneAtSHA(url, sha, dest string) error {
+	if head, err := HeadSHA(dest); err == nil && head == sha {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
+	}
+	tmp, err := os.MkdirTemp(filepath.Dir(dest), ".liszt-clone-*")
+	if err != nil {
+		return err
+	}
+	if err := cloneInto(url, sha, tmp); err != nil {
+		os.RemoveAll(tmp)
+		return err
+	}
+	if err := os.RemoveAll(dest); err != nil {
+		os.RemoveAll(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		os.RemoveAll(tmp)
+		return err
+	}
+	return nil
+}
+
+func cloneInto(url, sha, dir string) error {
+	run := func(args ...string) error {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Stdout = os.Stderr
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	if err := run("init", "-q"); err != nil {
+		return fmt.Errorf("git init: %w", err)
+	}
+	if err := run("remote", "add", "origin", url); err != nil {
+		return fmt.Errorf("git remote add: %w", err)
+	}
+	if err := run("fetch", "--depth=1", "origin", sha); err != nil {
+		if err2 := run("fetch", "origin"); err2 != nil {
+			return fmt.Errorf("git fetch: %w (after shallow: %v)", err2, err)
+		}
+	}
+	if err := run("checkout", "-q", sha); err != nil {
+		return fmt.Errorf("git checkout %s: %w", sha, err)
+	}
+	return nil
+}
+
 // LsRemoteHead returns the remote's HEAD SHA without cloning.
 func LsRemoteHead(url string) (string, error) {
 	out, err := exec.Command("git", "ls-remote", url, "HEAD").Output()

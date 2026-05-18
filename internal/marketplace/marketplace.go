@@ -79,6 +79,92 @@ func pluginSourcePath(src any) string {
 	return ""
 }
 
+// PluginSource is the parsed form of Plugin.Source.
+// Exactly one of Subdir / External is set.
+type PluginSource struct {
+	Subdir   string
+	External *ExternalSource
+}
+
+// ExternalSource describes a "git-subdir" plugin source.
+type ExternalSource struct {
+	URL  string
+	Path string
+	Ref  string
+	SHA  string
+}
+
+// ParseSource decodes a Plugin.Source value.
+//
+//	string "./plugins/foo"                                  -> Subdir
+//	{ "path": "plugins/foo" }                               -> Subdir
+//	{ "source": "git-subdir", "url", "path", "ref", "sha" } -> External (with Path)
+//	{ "source": "url", "url", "sha" }                       -> External (Path empty)
+//	{ "source": "github", "repo", "sha" }                   -> External (Path empty)
+func ParseSource(raw any) (PluginSource, error) {
+	switch v := raw.(type) {
+	case string:
+		return PluginSource{Subdir: strings.TrimPrefix(v, "./")}, nil
+	case map[string]any:
+		src, _ := v["source"].(string)
+		switch src {
+		case "git-subdir":
+			ext := &ExternalSource{}
+			ext.URL, _ = v["url"].(string)
+			ext.Path, _ = v["path"].(string)
+			ext.Path = strings.TrimPrefix(ext.Path, "./")
+			ext.Ref, _ = v["ref"].(string)
+			ext.SHA, _ = v["sha"].(string)
+			if ext.URL == "" || ext.SHA == "" {
+				return PluginSource{}, fmt.Errorf("git-subdir source missing url or sha")
+			}
+			return PluginSource{External: ext}, nil
+		case "url":
+			ext := &ExternalSource{}
+			ext.URL, _ = v["url"].(string)
+			ext.SHA, _ = v["sha"].(string)
+			if ext.URL == "" || ext.SHA == "" {
+				return PluginSource{}, fmt.Errorf("url source missing url or sha")
+			}
+			return PluginSource{External: ext}, nil
+		case "github":
+			repo, _ := v["repo"].(string)
+			sha, _ := v["sha"].(string)
+			if repo == "" || sha == "" {
+				return PluginSource{}, fmt.Errorf("github source missing repo or sha")
+			}
+			return PluginSource{External: &ExternalSource{
+				URL: "https://github.com/" + repo + ".git",
+				SHA: sha,
+			}}, nil
+		}
+		if p, ok := v["path"].(string); ok {
+			return PluginSource{Subdir: strings.TrimPrefix(p, "./")}, nil
+		}
+	case nil:
+		return PluginSource{}, nil
+	}
+	return PluginSource{}, fmt.Errorf("unsupported plugin source: %T", raw)
+}
+
+// PluginManifestVersion reads <srcDir>/.claude-plugin/plugin.json and
+// returns its "version" field. Returns "" if the file is missing or has
+// no version. This is the authoritative version source for installed
+// plugins (marketplace.json's plug.Version is frequently null).
+func PluginManifestVersion(srcDir string) string {
+	data, err := os.ReadFile(filepath.Join(srcDir, ".claude-plugin", "plugin.json"))
+	if err != nil {
+		return ""
+	}
+	var pm struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(data, &pm) != nil {
+		return ""
+	}
+	return pm.Version
+}
+
 func readFirstWithSource(root string, paths ...string) ([]byte, string, bool, error) {
 	for _, p := range paths {
 		data, err := os.ReadFile(filepath.Join(root, p))
