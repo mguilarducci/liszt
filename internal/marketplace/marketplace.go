@@ -147,6 +147,24 @@ func ParseSource(raw any) (PluginSource, error) {
 	return PluginSource{}, fmt.Errorf("unsupported plugin source: %T", raw)
 }
 
+// PluginManifestVersion reads <srcDir>/.claude-plugin/plugin.json and
+// returns its "version" field. Returns "" if the file is missing or has
+// no version. This is the authoritative version source for installed
+// plugins (marketplace.json's plug.Version is frequently null).
+func PluginManifestVersion(srcDir string) string {
+	data, err := os.ReadFile(filepath.Join(srcDir, ".claude-plugin", "plugin.json"))
+	if err != nil {
+		return ""
+	}
+	var pm struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(data, &pm) != nil {
+		return ""
+	}
+	return pm.Version
+}
+
 func readFirstWithSource(root string, paths ...string) ([]byte, string, bool, error) {
 	for _, p := range paths {
 		data, err := os.ReadFile(filepath.Join(root, p))

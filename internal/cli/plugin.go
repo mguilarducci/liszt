@@ -119,7 +119,10 @@ func claudeInstall(p Paths, r repos.Entry, owner, repoName, mpClone string, mp *
 		srcSha = r.SHA
 	}
 
-	version := plug.Version
+	version := marketplace.PluginManifestVersion(srcDir)
+	if version == "" {
+		version = plug.Version
+	}
 	if version == "" {
 		version = "unknown"
 	}
