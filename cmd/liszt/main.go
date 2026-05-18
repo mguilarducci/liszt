@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
+	"github.com/mguilarducci/liszt/internal/marketplace"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -20,21 +21,6 @@ const (
 )
 
 // ---------- types ----------
-
-type plugin struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     string `json:"version,omitempty"`
-	Source      any    `json:"source,omitempty"`
-}
-
-type marketplace struct {
-	Name     string   `json:"name"`
-	Plugins  []plugin `json:"plugins"`
-	Metadata struct {
-		PluginRoot string `json:"pluginRoot"`
-	} `json:"metadata"`
-}
 
 type repoEntry struct {
 	Name string `toml:"name"`
@@ -293,7 +279,7 @@ func repoCmd(args []string) {
 
 	sha, err := gitx.HeadSHA(dest)
 	must(err)
-	if _, _, err := readMarketplace(dest); err != nil {
+	if _, _, err := marketplace.Read(dest); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
@@ -329,7 +315,7 @@ func pluginCmd(args []string) {
 			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
 			continue
 		}
-		mp, _, err := readMarketplace(gitx.RepoPath(cacheDir, owner, repo))
+		mp, _, err := marketplace.Read(gitx.RepoPath(cacheDir, owner, repo))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
 			continue
@@ -383,7 +369,7 @@ func resourceCmd(kind string, args []string) {
 			continue
 		}
 		root := gitx.RepoPath(cacheDir, owner, repo)
-		mp, _, err := readMarketplace(root)
+		mp, _, err := marketplace.Read(root)
 		if err != nil {
 			continue
 		}
@@ -391,7 +377,7 @@ func resourceCmd(kind string, args []string) {
 			if pluginName != "" && p.Name != pluginName {
 				continue
 			}
-			pluginRoot := filepath.Join(root, resolvePluginPath(mp, p))
+			pluginRoot := filepath.Join(root, mp.ResolvePluginPath(p))
 			items, err := def.list(pluginRoot)
 			if err != nil || len(items) == 0 {
 				if pluginName != "" && p.Name == pluginName {
@@ -535,7 +521,7 @@ func resolveSlug(kind, raw string) ([]match, error) {
 			continue
 		}
 		root := gitx.RepoPath(cacheDir, owner, repo)
-		mp, _, err := readMarketplace(root)
+		mp, _, err := marketplace.Read(root)
 		if err != nil {
 			continue
 		}
@@ -543,7 +529,7 @@ func resolveSlug(kind, raw string) ([]match, error) {
 			if wantPlugin != "" && p.Name != wantPlugin {
 				continue
 			}
-			rel := resolvePluginPath(mp, p)
+			rel := mp.ResolvePluginPath(p)
 			pluginRoot := filepath.Join(root, rel)
 			items, err := def.list(pluginRoot)
 			if err != nil {
@@ -592,7 +578,7 @@ func installPlugin(slug, flavor string) {
 			continue
 		}
 		root := gitx.RepoPath(cacheDir, owner, repo)
-		mp, _, err := readMarketplace(root)
+		mp, _, err := marketplace.Read(root)
 		if err != nil {
 			continue
 		}
@@ -607,7 +593,7 @@ func installPlugin(slug, flavor string) {
 				pluginName: p.Name,
 				repoName:   r.Name,
 				sha:        r.SHA,
-				path:       resolvePluginPath(mp, p),
+				path:       mp.ResolvePluginPath(p),
 			}, slug)
 			return
 		}
@@ -709,59 +695,6 @@ func printHeader(first *bool, repoName, pluginName, kind string, n int) {
 	}
 	*first = false
 	fmt.Printf("== %s :: %s (%d %ss) ==\n", repoName, pluginName, n, kind)
-}
-
-// ---------- fs helpers ----------
-
-func readMarketplace(repoRoot string) (*marketplace, string, error) {
-	data, src, ok, err := readFirstWithSource(repoRoot,
-		".claude-plugin/marketplace.json", // Claude Code canonical
-		".github/plugin/marketplace.json", // Copilot CLI canonical
-	)
-	if err != nil {
-		return nil, "", fmt.Errorf("read marketplace.json: %w", err)
-	}
-	if !ok {
-		return nil, "", fmt.Errorf("marketplace.json not found (tried .claude-plugin/, .github/plugin/)")
-	}
-	var mp marketplace
-	if err := json.Unmarshal(data, &mp); err != nil {
-		return nil, "", fmt.Errorf("parse marketplace.json: %w", err)
-	}
-	flavor := "claude"
-	if strings.HasPrefix(src, ".github/plugin/") {
-		flavor = "copilot"
-	}
-	return &mp, flavor, nil
-}
-
-func resolvePluginPath(mp *marketplace, p plugin) string {
-	src := pluginSourcePath(p.Source)
-	base := strings.TrimPrefix(mp.Metadata.PluginRoot, "./")
-	switch {
-	case base == "" || base == ".":
-		return src
-	case src == "":
-		return base
-	default:
-		return filepath.Join(base, src)
-	}
-}
-
-func pluginSourcePath(src any) string {
-	switch v := src.(type) {
-	case string:
-		p := strings.TrimPrefix(v, "./")
-		if p == "" || p == "." {
-			return ""
-		}
-		return p
-	case map[string]any:
-		if p, ok := v["path"].(string); ok {
-			return strings.TrimPrefix(p, "./")
-		}
-	}
-	return ""
 }
 
 // ---------- repos.toml ----------
