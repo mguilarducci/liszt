@@ -9,6 +9,7 @@ require (
 	github.com/hexops/autogold/v2 v2.3.1
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pelletier/go-toml/v2 v2.3.1
+	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/cobra v1.10.2
 )
 
