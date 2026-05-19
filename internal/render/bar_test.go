@@ -104,3 +104,61 @@ func TestBar_IndeterminateBackToDeterminate(t *testing.T) {
 	}
 	b.Stop()
 }
+
+func TestBar_NonTTYSingleLineOnConstruction(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	r := New(&buf) // bytes.Buffer is non-TTY
+	r.Bar("hello")
+	got := buf.String()
+	if !strings.Contains(got, "info") {
+		t.Errorf("non-TTY bar should emit info line: %q", got)
+	}
+	if !strings.Contains(got, "hello") {
+		t.Errorf("non-TTY bar missing label text: %q", got)
+	}
+}
+
+func TestBar_NonTTYDoneEmitsDoneLine(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	r := New(&buf)
+	b := r.Bar("hello")
+	b.Done("finished")
+	got := buf.String()
+	if !strings.Contains(got, "done") {
+		t.Errorf("non-TTY Done should emit done line: %q", got)
+	}
+	if !strings.Contains(got, "finished") {
+		t.Errorf("non-TTY Done missing message: %q", got)
+	}
+}
+
+func TestBar_StopIdempotent(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("x")
+	b.Stop()
+	b.Stop() // must not panic, must not double-close
+}
+
+func TestBar_MidPrintInterruptRepaints(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	r := newTTYRenderer(&buf)
+	b := r.Bar("running")
+	b.Set(0.5)
+	r.Info("interrupting message")
+	got := buf.String()
+	if !strings.Contains(got, "interrupting message") {
+		t.Errorf("Info line missing: %q", got)
+	}
+	if !strings.Contains(got, "running") {
+		t.Errorf("bar did not repaint after Info: %q", got)
+	}
+	b.Stop()
+}
