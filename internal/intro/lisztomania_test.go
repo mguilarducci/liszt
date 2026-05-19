@@ -8,9 +8,9 @@ import (
 func TestNew_DefaultsToDarkBackground(t *testing.T) {
 	t.Parallel()
 
-	m := NewWithDefaults()
+	m := Intro(true)
 	if !m.hasDarkBackground {
-		t.Errorf("NewWithDefaults() should set hasDarkBackground=true")
+		t.Errorf("Intro(true) should set hasDarkBackground=true")
 	}
 	if m.TotalFrames() == 0 {
 		t.Errorf("model has zero frames; generated frame data missing")
@@ -20,18 +20,30 @@ func TestNew_DefaultsToDarkBackground(t *testing.T) {
 func TestNew_LightBackground(t *testing.T) {
 	t.Parallel()
 
-	m := New(false)
+	m := Intro(false)
 	if m.hasDarkBackground {
-		t.Errorf("New(false) should set hasDarkBackground=false")
+		t.Errorf("Intro(false) should set hasDarkBackground=false")
 	}
 }
 
 func TestView_NonEmptyForFirstFrame(t *testing.T) {
 	t.Parallel()
 
-	m := NewWithDefaults()
+	m := Intro(true)
 	if got := m.View(); got == "" {
 		t.Errorf("View() returned empty string for frame 0")
+	}
+}
+
+func TestLogo_HasFramesAndDims(t *testing.T) {
+	t.Parallel()
+
+	m := Logo(true)
+	if m.TotalFrames() == 0 {
+		t.Errorf("Logo model has zero frames")
+	}
+	if m.width != 87 || m.height != 10 {
+		t.Errorf("Logo dims = %dx%d; want 87x10", m.width, m.height)
 	}
 }
 

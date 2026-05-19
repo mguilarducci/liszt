@@ -57,11 +57,10 @@ type Model struct {
 
 type tickMsg time.Time
 
-// New creates a new animation model
-// Set hasDarkBackground to true for dark terminals, false for light terminals
-func New(hasDarkBackground bool) Model {
+// Intro builds the build-up animation (LISZT / MANIA stacked) model.
+func Intro(hasDarkBackground bool) Model {
 	return Model{
-		frames:            frames,
+		frames:            introFrames,
 		frameIndex:        0,
 		isPlaying:         true,
 		loop:              false,
@@ -71,9 +70,17 @@ func New(hasDarkBackground bool) Model {
 	}
 }
 
-// NewWithDefaults creates a new animation model with dark background (default)
-func NewWithDefaults() Model {
-	return New(true)
+// Logo builds the static LISZTOMANIA wordmark animation model.
+func Logo(hasDarkBackground bool) Model {
+	return Model{
+		frames:            logoFrames,
+		frameIndex:        0,
+		isPlaying:         true,
+		loop:              false,
+		width:             87,
+		height:            10,
+		hasDarkBackground: hasDarkBackground,
+	}
 }
 
 // Init initializes the model
@@ -116,17 +123,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// Play runs the animation to completion on the given writer. No-op (returns
-// nil) when w is not a TTY — animation is purely cosmetic and would only
-// flicker garbage through pipes.
+// Play runs the chained intro→logo animation on w. The intro plays first,
+// is erased once it finishes, and the logo plays in its place and remains
+// visible. No-op (returns nil) when w is not a TTY — the animation is
+// purely cosmetic and would only flicker garbage through pipes.
 func Play(w io.Writer, hasDarkBackground bool) error {
 	f, ok := w.(*os.File)
 	if !ok || !isatty.IsTerminal(f.Fd()) {
 		return nil
 	}
-	prog := tea.NewProgram(New(hasDarkBackground), tea.WithOutput(f))
-	_, err := prog.Run()
-	return err
+	intro := Intro(hasDarkBackground)
+	if _, err := tea.NewProgram(intro, tea.WithOutput(f)).Run(); err != nil {
+		return err
+	}
+	// Erase the intro's final frame so the logo renders in its place.
+	// \x1b[<n>F moves the cursor up n lines to column 1;
+	// \x1b[0J clears from cursor to end of screen.
+	fmt.Fprintf(f, "\x1b[%dF\x1b[0J", intro.height)
+	logo := Logo(hasDarkBackground)
+	if _, err := tea.NewProgram(logo, tea.WithOutput(f)).Run(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // getColor returns the appropriate color for the current background mode
@@ -199,7 +217,7 @@ func (m Model) TotalFrames() int {
 }
 
 // Frame data
-var frames = []Frame{
+var introFrames = []Frame{
 	{
 		Duration: 133 * time.Millisecond,
 		Content: []string{
