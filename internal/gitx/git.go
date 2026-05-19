@@ -2,11 +2,36 @@ package gitx
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
+
+var (
+	outputMu sync.RWMutex
+	output   io.Writer = os.Stderr
+)
+
+// SetOutput swaps the writer that git subprocess stdout/stderr is forwarded
+// to. Returns the previous writer so callers can restore it. Defaults to
+// os.Stderr.
+func SetOutput(w io.Writer) io.Writer {
+	outputMu.Lock()
+	defer outputMu.Unlock()
+	prev := output
+	output = w
+	return prev
+}
+
+// Output returns the current subprocess output writer.
+func Output() io.Writer {
+	outputMu.RLock()
+	defer outputMu.RUnlock()
+	return output
+}
 
 // EnsureClone clones url into dest if .git is absent. No-op if already cloned.
 func EnsureClone(url, dest string) error {
@@ -17,8 +42,9 @@ func EnsureClone(url, dest string) error {
 		return err
 	}
 	cmd := exec.Command("git", "clone", "--depth=1", url, dest)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
+	out := Output()
+	cmd.Stdout = out
+	cmd.Stderr = out
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
@@ -66,8 +92,9 @@ func CloneAtSHA(url, sha, dest string) error {
 func cloneInto(url, sha, dir string) error {
 	run := func(args ...string) error {
 		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Stdout = os.Stderr
-		cmd.Stderr = os.Stderr
+		out := Output()
+		cmd.Stdout = out
+		cmd.Stderr = out
 		return cmd.Run()
 	}
 	if err := run("init", "-q"); err != nil {
