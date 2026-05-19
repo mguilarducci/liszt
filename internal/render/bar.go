@@ -152,8 +152,8 @@ func (b *Bar) Done(msg string, kv ...any) {
 	b.r.Done(msg, kv...)
 }
 
-// Fail stops the bar and prints an Error line.
+// Fail stops the bar and prints a Fail summary block.
 func (b *Bar) Fail(msg string, kv ...any) {
 	b.Stop()
-	b.r.Error(msg, kv...)
+	b.r.Fail(msg, kv...)
 }

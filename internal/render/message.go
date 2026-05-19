@@ -7,27 +7,74 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Info prints an informational line.
+// Info prints an informational line. Kept temporarily during the migration
+// to the new vocabulary — Task 14 removes this method.
 func (r *Renderer) Info(msg string, kv ...any) {
 	r.writeLine(styInfoBar, styInfoLbl, lblInfo, msg, kv)
 }
 
-// Warn prints a warning line.
-func (r *Renderer) Warn(msg string, kv ...any) {
-	r.writeLine(styWarnBar, styWarnLbl, lblWarn, msg, kv)
+// Warn prints `! <msg>` in the warn color. Kv payload is dropped (callers
+// pair Warn with Detail for technical context).
+func (r *Renderer) Warn(msg string, _ ...any) {
+	r.writeGlyphLine("! "+msg+"\n", &styWarnLbl)
 }
 
-// Error prints an error line. Callers should still return the error from the
-// cobra RunE — fang prints the styled terminal error separately.
-func (r *Renderer) Error(msg string, kv ...any) {
-	r.writeLine(styErrorBar, styErrorLbl, lblError, msg, kv)
-}
-
-// Done prints a success line.
+// Done prints `✔ <msg>` followed by an indented `key: value` summary block.
 func (r *Renderer) Done(msg string, kv ...any) {
-	r.writeLine(styDoneBar, styDoneLbl, lblDone, msg, kv)
+	r.writeSummaryBlock(styDoneLbl, "✔ "+msg, kv)
 }
 
+// Fail prints `✖ <msg>` followed by an indented `key: value` summary block.
+// Callers should still return the underlying error from RunE so fang prints
+// its own styled terminal error.
+func (r *Renderer) Fail(msg string, kv ...any) {
+	r.writeSummaryBlock(styErrorLbl, "✖ "+msg, kv)
+}
+
+func (r *Renderer) writeSummaryBlock(headerSty lipgloss.Style, header string, kv []any) {
+	styledHeader := headerSty.Render(header)
+	body := formatSummary(kv)
+	r.writeGlyphLine(styledHeader+"\n"+body, nil)
+}
+
+// formatSummary renders kv pairs as aligned `  key: value\n` lines.
+func formatSummary(kv []any) string {
+	if len(kv) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, (len(kv)+1)/2)
+	vals := make([]string, 0, (len(kv)+1)/2)
+	width := 0
+	for i := 0; i < len(kv); i += 2 {
+		k := fmt.Sprint(kv[i])
+		var v string
+		if i+1 >= len(kv) {
+			v = "<missing>"
+		} else {
+			v = fmt.Sprint(kv[i+1])
+		}
+		if len(k) > width {
+			width = len(k)
+		}
+		keys = append(keys, k)
+		vals = append(vals, v)
+	}
+	var sb strings.Builder
+	for i, k := range keys {
+		pad := strings.Repeat(" ", width-len(k))
+		sb.WriteString("  ")
+		sb.WriteString(k)
+		sb.WriteString(":")
+		sb.WriteString(pad)
+		sb.WriteString(" ")
+		sb.WriteString(vals[i])
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+// writeLine emits the bar-prefixed `▌ label  msg  kv` format used by Info
+// (transitional) and the underlying Bar repaint.
 func (r *Renderer) writeLine(barSty, lblSty lipgloss.Style, label, msg string, kv []any) {
 	line := r.formatLine(barSty, lblSty, label, msg, kv)
 	r.mu.Lock()
@@ -37,8 +84,6 @@ func (r *Renderer) writeLine(barSty, lblSty lipgloss.Style, label, msg string, k
 	}
 	r.writeString(line)
 	if r.active != nil {
-		// repaint takes r.mu, so drop and re-acquire (the deferred Unlock at
-		// the top fires on a held lock at return).
 		active := r.active
 		r.mu.Unlock()
 		active.repaint()

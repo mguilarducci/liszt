@@ -54,7 +54,7 @@ func Execute(ctx context.Context) error {
 }
 
 // gleamColorScheme maps the Gleam palette onto fang's ColorScheme so help,
-// version, and error output share the same look-and-feel as render.Info,
+// version, and error output share the same look-and-feel as render.Step,
 // render.Bar, etc. The function signature matches fang.ColorSchemeFunc and
 // is invoked with a lipgloss.LightDarkFunc that resolves to the terminal's
 // preferred variant; we ignore the light/dark argument because the Gleam

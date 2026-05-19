@@ -38,11 +38,11 @@ func TestBar_DoneEmitsSuccessLine(t *testing.T) {
 	b := newTTYRenderer(&buf).Bar("label")
 	b.Done("installed", "slug", "x")
 	got := buf.String()
-	if !strings.Contains(got, "done ") {
-		t.Errorf("Done did not emit done line: %q", got)
+	if !strings.Contains(got, "✔ installed") {
+		t.Errorf("Done did not emit ✔ glyph: %q", got)
 	}
-	if !strings.Contains(got, "slug=x") {
-		t.Errorf("Done did not include kv: %q", got)
+	if !strings.Contains(got, "  slug: x") {
+		t.Errorf("Done did not include summary kv: %q", got)
 	}
 }
 
@@ -52,8 +52,12 @@ func TestBar_FailEmitsErrorLine(t *testing.T) {
 	var buf bytes.Buffer
 	b := newTTYRenderer(&buf).Bar("label")
 	b.Fail("boom", "err", "network")
-	if !strings.Contains(buf.String(), "error") {
-		t.Errorf("Fail did not emit error line: %q", buf.String())
+	got := buf.String()
+	if !strings.Contains(got, "✖ boom") {
+		t.Errorf("Fail did not emit ✖ glyph: %q", got)
+	}
+	if !strings.Contains(got, "  err: network") {
+		t.Errorf("Fail did not include summary kv: %q", got)
 	}
 }
 
@@ -128,11 +132,8 @@ func TestBar_NonTTYDoneEmitsDoneLine(t *testing.T) {
 	b := r.Bar("hello")
 	b.Done("finished")
 	got := buf.String()
-	if !strings.Contains(got, "done") {
-		t.Errorf("non-TTY Done should emit done line: %q", got)
-	}
-	if !strings.Contains(got, "finished") {
-		t.Errorf("non-TTY Done missing message: %q", got)
+	if !strings.Contains(got, "✔ finished") {
+		t.Errorf("non-TTY Done should emit ✔ glyph + message: %q", got)
 	}
 }
 

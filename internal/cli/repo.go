@@ -20,7 +20,7 @@ func RepoAdd(p Paths, url string) error {
 	render.Info("resolving repo", "url", url)
 	owner, repo, err := gitx.ParseGitHubURL(url)
 	if err != nil {
-		render.Error("parse url failed", "url", url, "err", err)
+		render.Fail("parse url failed", "url", url, "err", err)
 		return err
 	}
 	name := owner + "/" + repo
@@ -37,7 +37,7 @@ func RepoAdd(p Paths, url string) error {
 
 	sha, err := gitx.HeadSHA(dest)
 	if err != nil {
-		render.Error("head-sha failed", "dest", dest, "err", err)
+		render.Fail("head-sha failed", "dest", dest, "err", err)
 		return err
 	}
 	render.Info("cloned", "sha", sha[:12])
@@ -53,12 +53,12 @@ func RepoAdd(p Paths, url string) error {
 	render.Info("saving repos.toml", "path", p.Repos)
 	cfg, err := repos.Load(p.Repos)
 	if err != nil {
-		render.Error("repos load failed", "path", p.Repos, "err", err)
+		render.Fail("repos load failed", "path", p.Repos, "err", err)
 		return err
 	}
 	cfg.Upsert(repos.Entry{Name: name, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
-		render.Error("repos save failed", "path", p.Repos, "err", err)
+		render.Fail("repos save failed", "path", p.Repos, "err", err)
 		return err
 	}
 
