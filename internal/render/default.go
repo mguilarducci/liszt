@@ -42,3 +42,7 @@ func Subheader(text string) { ensureDefault().Subheader(text) }
 
 // Hint delegates to Default.Hint.
 func Hint(text string) { ensureDefault().Hint(text) }
+
+// NewBar delegates to Default.Bar. Named NewBar (not Bar) to avoid the
+// package-level identifier colliding with the *Bar type.
+func NewBar(label string) *Bar { return ensureDefault().Bar(label) }

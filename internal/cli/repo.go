@@ -11,7 +11,7 @@ import (
 
 // RepoAdd clones url into p.Cache and upserts the entry into p.Repos.
 func RepoAdd(p Paths, url string) error {
-	bar := render.Default.Bar("cloning " + url)
+	bar := render.NewBar("cloning " + url)
 	bar.SetIndeterminate(true)
 	prev := gitx.SetOutput(io.Discard)
 	defer gitx.SetOutput(prev)

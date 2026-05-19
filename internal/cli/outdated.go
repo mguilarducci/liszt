@@ -31,7 +31,7 @@ func Outdated(p Paths) error {
 		latest string
 	}
 
-	bar := render.Default.Bar("checking remotes")
+	bar := render.NewBar("checking remotes")
 	prev := gitx.SetOutput(io.Discard)
 	defer gitx.SetOutput(prev)
 

@@ -22,7 +22,7 @@ type installBar struct {
 }
 
 func newInstallBar(label string) *installBar {
-	return &installBar{bar: render.Default.Bar("installing " + label)}
+	return &installBar{bar: render.NewBar("installing " + label)}
 }
 
 func (b *installBar) StageResolve(slug string) {
