@@ -69,3 +69,38 @@ func TestBar_UpdateChangesLabel(t *testing.T) {
 	}
 	b.Stop()
 }
+
+func TestBar_IndeterminateShowsDots(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("cloning")
+	b.SetIndeterminate(true)
+	b.Set(0.5)
+	b.repaint()
+	got := buf.String()
+	if !strings.Contains(got, "····") {
+		t.Errorf("indeterminate did not render dots: %q", got)
+	}
+	if strings.Contains(got, " 50%") {
+		t.Errorf("indeterminate should hide percentage: %q", got)
+	}
+	b.Stop()
+}
+
+func TestBar_IndeterminateBackToDeterminate(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("step")
+	b.SetIndeterminate(true)
+	b.repaint()
+	buf.Reset()
+	b.SetIndeterminate(false)
+	b.Set(0.5)
+	b.repaint()
+	if !strings.Contains(buf.String(), " 50%") {
+		t.Errorf("returning to determinate did not show percentage: %q", buf.String())
+	}
+	b.Stop()
+}
