@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
@@ -10,61 +9,59 @@ import (
 	"github.com/mguilarducci/liszt/internal/repos"
 )
 
-// RepoAdd clones url into p.Cache and upserts the entry into p.Repos. Drives
-// the progress bar through the resolve/clone/inspect/save stages and prints
-// a multi-line summary after the bar closes.
+// RepoAdd clones url into p.Cache and upserts the entry into p.Repos. Each
+// stage emits its own info line so the user sees the operation as a
+// sequence of persistent steps; the clone step (the only slow opaque op)
+// is wrapped in an indeterminate bar that disappears once it finishes.
 func RepoAdd(p Paths, url string) error {
-	bar := render.NewBar("resolving " + url)
-	bar.SetIndeterminate(true)
 	prev := gitx.SetOutput(io.Discard)
 	defer gitx.SetOutput(prev)
 
+	render.Info("resolving repo", "url", url)
 	owner, repo, err := gitx.ParseGitHubURL(url)
 	if err != nil {
-		bar.Fail("parse url failed", "url", url, "err", err)
+		render.Error("parse url failed", "url", url, "err", err)
 		return err
 	}
 	name := owner + "/" + repo
-
-	bar.Update("cloning " + name)
 	dest := gitx.RepoPath(p.Cache, owner, repo)
+
+	render.Info("cloning", "name", name, "dest", dest)
+	bar := render.NewBar("cloning " + name)
+	bar.SetIndeterminate(true)
 	if err := gitx.EnsureClone(url, dest); err != nil {
 		bar.Fail("clone failed", "url", url, "err", err)
 		return err
 	}
+	bar.Stop()
 
-	bar.Update("reading head sha")
 	sha, err := gitx.HeadSHA(dest)
 	if err != nil {
-		bar.Fail("head-sha failed", "dest", dest, "err", err)
+		render.Error("head-sha failed", "dest", dest, "err", err)
 		return err
 	}
+	render.Info("cloned", "sha", sha[:12])
 
-	bar.Update("reading marketplace.json")
+	render.Info("reading marketplace.json")
 	mp, flavor, mpErr := marketplace.Read(dest)
+	if mpErr != nil {
+		render.Warn("marketplace.json", "err", mpErr)
+	} else {
+		render.Info("marketplace", "name", mp.Name, "flavor", flavor, "plugins", len(mp.Plugins))
+	}
 
-	bar.Update("saving repos.toml")
+	render.Info("saving repos.toml", "path", p.Repos)
 	cfg, err := repos.Load(p.Repos)
 	if err != nil {
-		bar.Fail("repos load failed", "path", p.Repos, "err", err)
+		render.Error("repos load failed", "path", p.Repos, "err", err)
 		return err
 	}
 	cfg.Upsert(repos.Entry{Name: name, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
-		bar.Fail("repos save failed", "path", p.Repos, "err", err)
+		render.Error("repos save failed", "path", p.Repos, "err", err)
 		return err
 	}
 
-	bar.Done("repo added", "name", name)
-	render.Subheader(name)
-	render.Hint(fmt.Sprintf("  url         %s", url))
-	render.Hint(fmt.Sprintf("  cache       %s", dest))
-	render.Hint(fmt.Sprintf("  sha         %s", sha[:12]))
-	if mpErr != nil {
-		render.Warn("marketplace.json", "err", mpErr)
-		return nil
-	}
-	render.Hint(fmt.Sprintf("  marketplace %s (%s)", mp.Name, flavor))
-	render.Hint(fmt.Sprintf("  plugins     %d", len(mp.Plugins)))
+	render.Done("repo added", "name", name)
 	return nil
 }
