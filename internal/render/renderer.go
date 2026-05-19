@@ -19,6 +19,7 @@ type Renderer struct {
 	mu      sync.Mutex
 	rng     *rand.Rand
 	active  anim
+	verbose bool
 }
 
 // anim is the surface a Renderer needs to ask the currently-active animation
@@ -68,6 +69,13 @@ func WithTTY(isTTY bool) Option {
 // Test-only — production callers should leave this unset.
 func WithRand(rng *rand.Rand) Option {
 	return func(r *Renderer) { r.rng = rng }
+}
+
+// SetVerbose toggles emission of Detail lines. Default false.
+func (r *Renderer) SetVerbose(on bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.verbose = on
 }
 
 // New constructs a Renderer writing to w. Auto-detection of color profile

@@ -46,3 +46,9 @@ func Hint(text string) { ensureDefault().Hint(text) }
 // NewBar delegates to Default.Bar. Named NewBar (not Bar) to avoid the
 // package-level identifier colliding with the *Bar type.
 func NewBar(label string) *Bar { return ensureDefault().Bar(label) }
+
+// Detail delegates to Default.Detail.
+func Detail(msg string, kv ...any) { ensureDefault().Detail(msg, kv...) }
+
+// SetVerbose toggles Detail emission on the package-level Default renderer.
+func SetVerbose(on bool) { ensureDefault().SetVerbose(on) }
