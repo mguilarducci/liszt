@@ -52,3 +52,12 @@ func Detail(msg string, kv ...any) { ensureDefault().Detail(msg, kv...) }
 
 // SetVerbose toggles Detail emission on the package-level Default renderer.
 func SetVerbose(on bool) { ensureDefault().SetVerbose(on) }
+
+// Step delegates to Default.Step.
+func Step(msg string) { ensureDefault().Step(msg) }
+
+// StepDone delegates to Default.StepDone.
+func StepDone(msg string) { ensureDefault().StepDone(msg) }
+
+// StepFail delegates to Default.StepFail.
+func StepFail(msg string, err error) { ensureDefault().StepFail(msg, err) }
