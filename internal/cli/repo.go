@@ -48,8 +48,9 @@ func RepoAdd(p Paths, url string) error {
 		return err
 	}
 	if _, ok := cfg.Find(name); ok {
-		progress.StepFail(ErrAlreadyAdded)
-		render.Fail(name + " already added")
+		progress.SetLabel("Already registered")
+		progress.Freeze()
+		render.Warn(name + " already added")
 		render.Hint("→ Run `liszt repo update " + name + "` to refresh")
 		return ErrAlreadyAdded
 	}

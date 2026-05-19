@@ -73,13 +73,25 @@ func (p *Progress) Done(msg string, kv ...any) {
 	p.bar.Done(msg, kv...)
 }
 
-// StepFail stops the bar with an `✗ <current label>: <err>` line. Any
-// subsequent Step / Done call on this Progress is a no-op.
+// StepFail freezes the bar in place and emits `✗ <current label>: <err>`
+// below it. Any subsequent Step / Done call on this Progress is a no-op.
 func (p *Progress) StepFail(err error) {
 	if p.failed {
 		return
 	}
 	p.failed = true
-	p.bar.Stop()
+	p.bar.Freeze()
 	p.r.StepFail(p.label, err)
+}
+
+// Freeze halts the Progress without success/fail framing — the bar's
+// current frame stays on screen, and the caller is responsible for any
+// follow-up message. Use when the work is being abandoned for an
+// informational reason (e.g. already-registered no-op).
+func (p *Progress) Freeze() {
+	if p.failed {
+		return
+	}
+	p.failed = true
+	p.bar.Freeze()
 }

@@ -128,17 +128,27 @@ func (b *Bar) SetIndeterminate(on bool) { b.indeterminate.Store(on) }
 // line emitted at construction).
 func (b *Bar) Update(label string) { b.label.Store(label) }
 
-// Stop ends the animation and clears the bar line. No-op on non-TTY.
-func (b *Bar) Stop() {
+// stopLoop closes the stop chan and waits for the loop goroutine to exit.
+// Returns false on non-TTY (no loop ever ran) or when already stopped.
+func (b *Bar) stopLoop() bool {
 	if !b.r.isTTY {
-		return
+		return false
 	}
 	if !b.stopped.CompareAndSwap(false, true) {
-		return
+		return false
 	}
 	if b.loopActive.CompareAndSwap(true, false) {
 		close(b.stop)
 		<-b.done
+	}
+	return true
+}
+
+// Stop ends the animation and clears the bar line. No-op on non-TTY.
+// Use Freeze when the final frame should remain on screen.
+func (b *Bar) Stop() {
+	if !b.stopLoop() {
+		return
 	}
 	b.r.mu.Lock()
 	b.r.active = nil
@@ -146,14 +156,32 @@ func (b *Bar) Stop() {
 	b.r.mu.Unlock()
 }
 
-// Done stops the bar and prints a Done line.
+// Freeze ends the animation but leaves the last painted frame on screen,
+// then advances the cursor past it with a newline. Use this when the bar
+// should persist as a visible record of completed (or failed) progress.
+// No-op on non-TTY.
+func (b *Bar) Freeze() {
+	if !b.stopLoop() {
+		return
+	}
+	// Force one final paint so the persisted frame is guaranteed to show
+	// the bar's current state (the caller may have just called Set/Update
+	// without waiting for the animation ticker).
+	b.repaint()
+	b.r.mu.Lock()
+	b.r.active = nil
+	b.r.writeString("\n")
+	b.r.mu.Unlock()
+}
+
+// Done freezes the bar in place and prints a Done summary block below.
 func (b *Bar) Done(msg string, kv ...any) {
-	b.Stop()
+	b.Freeze()
 	b.r.Done(msg, kv...)
 }
 
-// Fail stops the bar and prints a Fail summary block.
+// Fail freezes the bar in place and prints a Fail summary block below.
 func (b *Bar) Fail(msg string, kv ...any) {
-	b.Stop()
+	b.Freeze()
 	b.r.Fail(msg, kv...)
 }

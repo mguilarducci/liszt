@@ -137,6 +137,55 @@ func TestBar_NonTTYDoneEmitsDoneLine(t *testing.T) {
 	}
 }
 
+func TestBar_DonePreservesFinalFrame(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(1)
+	b.Done("ok")
+	got := buf.String()
+	if !strings.Contains(got, "▌ ") {
+		t.Errorf("Done should leave bar frame on screen: %q", got)
+	}
+	// The last erase-line escape must precede the bar frame, not follow
+	// it: the bar's last paint should survive Done.
+	lastErase := strings.LastIndex(got, "\x1b[K")
+	lastBar := strings.LastIndex(got, "▌ ")
+	if lastErase > lastBar {
+		t.Errorf("erase sequence found after bar frame; bar was wiped: %q", got)
+	}
+}
+
+func TestBar_FailPreservesFinalFrame(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(0.5)
+	b.Fail("boom")
+	got := buf.String()
+	if !strings.Contains(got, "▌ ") {
+		t.Errorf("Fail should leave bar frame on screen: %q", got)
+	}
+}
+
+func TestBar_FreezeWritesNewline(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(0.3)
+	b.Freeze()
+	got := buf.String()
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("Freeze should end with newline: %q", got)
+	}
+	if strings.HasSuffix(got, "\x1b[K\n") {
+		t.Errorf("Freeze should not erase the bar line: %q", got)
+	}
+}
+
 func TestBar_StopIdempotent(t *testing.T) {
 	t.Parallel()
 

@@ -5,9 +5,10 @@ env XDG_CACHE_HOME=$WORK/cache
 mkdir $WORK/data/liszt
 cp seed-repos.toml $WORK/data/liszt/repos.toml
 
-! exec liszt repo add https://github.com/obra/superpowers
+exec liszt repo add https://github.com/obra/superpowers
 stderr 'already added'
 stderr 'repo update obra/superpowers'
+! stderr 'ERROR'
 ! exists $WORK/cache/repos/obra/superpowers
 
 -- seed-repos.toml --

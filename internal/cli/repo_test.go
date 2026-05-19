@@ -54,10 +54,13 @@ func TestRepoAdd_AlreadyAddedEmitsFailAndHint(t *testing.T) {
 	if !strings.Contains(got, "✓ Resolved obra/superpowers") {
 		t.Errorf("missing resolve step: %q", got)
 	}
-	if !strings.Contains(got, "✖ obra/superpowers already added") {
-		t.Errorf("missing fail line: %q", got)
+	if !strings.Contains(got, "! obra/superpowers already added") {
+		t.Errorf("missing warn line: %q", got)
 	}
 	if !strings.Contains(got, "→ Run `liszt repo update obra/superpowers`") {
 		t.Errorf("missing hint: %q", got)
+	}
+	if strings.Contains(got, "✖") {
+		t.Errorf("duplicate path must not use ✖ error glyph: %q", got)
 	}
 }
