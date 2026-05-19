@@ -1,4 +1,4 @@
 # --no-color flag strips ANSI from any output
 exec liszt --no-color version
-! stderr '\x1b\['
-stderr 'liszt'
+! stdout '\x1b\['
+stdout 'liszt'

@@ -27,13 +27,11 @@ var (
 	styDim  = lipgloss.NewStyle().Foreground(cDim)
 	styPink = lipgloss.NewStyle().Foreground(cPinkBright).Bold(true)
 
-	styInfoBar  = lipgloss.NewStyle().Foreground(cInfo)
 	styDoneBar  = lipgloss.NewStyle().Foreground(cDone)
 	styWarnBar  = lipgloss.NewStyle().Foreground(cWarn)
 	styErrorBar = lipgloss.NewStyle().Foreground(cError)
 	styStepBar  = lipgloss.NewStyle().Foreground(cInfo)
 
-	styInfoLbl  = lipgloss.NewStyle().Foreground(cInfo).Bold(true)
 	styDoneLbl  = lipgloss.NewStyle().Foreground(cDone).Bold(true)
 	styWarnLbl  = lipgloss.NewStyle().Foreground(cWarn).Bold(true)
 	styErrorLbl = lipgloss.NewStyle().Foreground(cError).Bold(true)
@@ -41,11 +39,9 @@ var (
 )
 
 const (
-	lblInfo  = "info "
-	lblDone  = "done "
-	lblWarn  = "warn "
-	lblError = "error"
-	lblStep  = "step "
+	lblDone = "done "
+	lblWarn = "warn "
+	lblStep = "step "
 )
 
 // Palette exposes the Gleam palette colors used by the render package. Other

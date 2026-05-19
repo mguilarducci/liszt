@@ -21,9 +21,6 @@ func ensureDefault() *Renderer {
 	return Default
 }
 
-// Info delegates to Default.Info.
-func Info(msg string, kv ...any) { ensureDefault().Info(msg, kv...) }
-
 // Warn delegates to Default.Warn.
 func Warn(msg string, kv ...any) { ensureDefault().Warn(msg, kv...) }
 

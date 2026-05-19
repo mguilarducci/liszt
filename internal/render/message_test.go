@@ -12,44 +12,6 @@ func newTestRenderer(buf *bytes.Buffer) *Renderer {
 	return New(buf, WithProfile(colorprofile.NoTTY))
 }
 
-func TestInfo_PlainOutput(t *testing.T) {
-	t.Parallel()
-
-	var buf bytes.Buffer
-	newTestRenderer(&buf).Info("hello")
-	got := buf.String()
-	if !strings.HasPrefix(got, "▌ info   hello") {
-		t.Errorf("Info output missing prefix: %q", got)
-	}
-	if !strings.HasSuffix(got, "\n") {
-		t.Errorf("Info output missing newline: %q", got)
-	}
-}
-
-func TestInfo_WithKV(t *testing.T) {
-	t.Parallel()
-
-	var buf bytes.Buffer
-	newTestRenderer(&buf).Info("hello", "key", "value", "n", 42)
-	got := buf.String()
-	if !strings.Contains(got, "key=value") {
-		t.Errorf("missing key=value: %q", got)
-	}
-	if !strings.Contains(got, "n=42") {
-		t.Errorf("missing n=42: %q", got)
-	}
-}
-
-func TestInfo_OddKV(t *testing.T) {
-	t.Parallel()
-
-	var buf bytes.Buffer
-	newTestRenderer(&buf).Info("hello", "lonely")
-	if !strings.Contains(buf.String(), "lonely=<missing>") {
-		t.Errorf("odd kv should render <missing>: %q", buf.String())
-	}
-}
-
 func TestEachLevelLabel(t *testing.T) {
 	t.Parallel()
 
@@ -58,9 +20,9 @@ func TestEachLevelLabel(t *testing.T) {
 		fn    func(*Renderer, string, ...any)
 		label string
 	}{
-		{"info", (*Renderer).Info, "info "},
 		{"warn", (*Renderer).Warn, "! "},
 		{"done", (*Renderer).Done, "✔ "},
+		{"fail", (*Renderer).Fail, "✖ "},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -129,16 +91,20 @@ func TestWarn_GlyphOnly(t *testing.T) {
 	}
 }
 
-func TestMultilineMessageIndents(t *testing.T) {
+func TestFormatKVOddPairsMarksMissing(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-	newTestRenderer(&buf).Info("line1\nline2")
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 lines; got %d: %q", len(lines), buf.String())
+	got := formatKV([]any{"lonely"})
+	if !strings.Contains(got, "lonely=<missing>") {
+		t.Errorf("odd kv should render <missing>: %q", got)
 	}
-	if !strings.HasPrefix(lines[1], "        ") {
-		t.Errorf("continuation line not indented: %q", lines[1])
+}
+
+func TestFormatSummaryOddPairsMarksMissing(t *testing.T) {
+	t.Parallel()
+
+	got := formatSummary([]any{"orphan"})
+	if !strings.Contains(got, "orphan: <missing>") {
+		t.Errorf("odd summary kv should render <missing>: %q", got)
 	}
 }

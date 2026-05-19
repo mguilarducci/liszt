@@ -7,12 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Info prints an informational line. Kept temporarily during the migration
-// to the new vocabulary — Task 14 removes this method.
-func (r *Renderer) Info(msg string, kv ...any) {
-	r.writeLine(styInfoBar, styInfoLbl, lblInfo, msg, kv)
-}
-
 // Warn prints `! <msg>` in the warn color. Kv payload is dropped (callers
 // pair Warn with Detail for technical context).
 func (r *Renderer) Warn(msg string, _ ...any) {
@@ -73,27 +67,8 @@ func formatSummary(kv []any) string {
 	return sb.String()
 }
 
-// writeLine emits the bar-prefixed `▌ label  msg  kv` format used by Info
-// (transitional) and the underlying Bar repaint.
-func (r *Renderer) writeLine(barSty, lblSty lipgloss.Style, label, msg string, kv []any) {
-	line := r.formatLine(barSty, lblSty, label, msg, kv)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.active != nil {
-		r.eraseLine()
-	}
-	r.writeString(line)
-	if r.active != nil {
-		active := r.active
-		r.mu.Unlock()
-		active.repaint()
-		r.mu.Lock()
-	}
-}
-
-// formatLine builds:
-//
-//	▌ <label>  <msg>  k1=v1 k2=v2\n
+// formatLine builds the bar-prefixed `▌ <label>  <msg>  k=v\n` line that
+// the Bar's repaint path emits.
 //
 // Continuation lines in msg are indented under the message column.
 func (r *Renderer) formatLine(barSty, lblSty lipgloss.Style, label, msg string, kv []any) string {
