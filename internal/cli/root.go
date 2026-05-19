@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
+	"github.com/mguilarducci/liszt/internal/intro"
 	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/version"
 )
@@ -20,6 +21,12 @@ var rootCmd = &cobra.Command{
 	Version:       version.Full(),
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		// Bare `liszt` invocation: play the intro animation (no-op on
+		// non-TTY) and then print the same help fang would render.
+		_ = intro.Play(os.Stderr, true)
+		return cmd.Help()
+	},
 }
 
 var noColor bool
