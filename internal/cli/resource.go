@@ -2,11 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/mguilarducci/liszt/internal/marketplace"
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/repos"
 	"github.com/mguilarducci/liszt/internal/resource"
 )
@@ -60,27 +61,45 @@ func ResourceList(p Paths, kind, pluginName string) error {
 		}
 	}
 	if pluginName != "" && !matched {
-		fmt.Fprintf(os.Stderr, "plugin %q not found (add repo with: liszt repo add <url>)\n", pluginName)
-		os.Exit(1)
+		return fmt.Errorf("plugin %q not found (add repo with: liszt repo add <url>)", pluginName)
 	}
 	return nil
 }
 
 // ResourceInstall handles `liszt <kind> install <slug> --flavor <flavor>`.
 func ResourceInstall(p Paths, kind, slug, flavor string) error {
+	bar := newInstallBar(fmt.Sprintf("%s/%s", kind, slug))
+	prev := gitx.SetOutput(io.Discard)
+	defer gitx.SetOutput(prev)
+
+	bar.StageResolve(slug)
 	matches, err := resolveSlug(p, kind, slug)
 	if err != nil {
+		bar.Fail("resolve failed", "slug", slug, "err", err)
 		return err
 	}
 	if len(matches) == 0 {
-		fmt.Fprintf(os.Stderr, "%s %q not found in cached repos\n", kind, slug)
-		os.Exit(1)
+		err := fmt.Errorf("%s %q not found in cached repos", kind, slug)
+		bar.Fail("not found", "kind", kind, "slug", slug)
+		return err
 	}
+	bar.StageCloneEnd()
+
 	m := matches[0]
 	m.flavor = flavor
 	if len(matches) > 1 {
-		fmt.Fprintf(os.Stderr, "note: %d sources for %q, picking %s:%s (%s); qualify as <plugin>:%s to override\n",
-			len(matches), slug, m.pluginName, m.slug, m.repoName, slug)
+		render.Warn(
+			fmt.Sprintf("%d sources for %q; picking %s:%s", len(matches), slug, m.pluginName, m.slug),
+			"repo", m.repoName,
+		)
 	}
-	return recordInstall(p, m, slug)
+
+	bar.StageMaterialize(slug)
+	bar.StageManifest()
+	if err := recordInstall(p, m, slug); err != nil {
+		bar.Fail("manifest write failed", "slug", slug, "err", err)
+		return err
+	}
+	bar.Done(slug, flavor)
+	return nil
 }
