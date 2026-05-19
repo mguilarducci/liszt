@@ -9,8 +9,6 @@ import (
 )
 
 func TestRootHasUseAndVersion(t *testing.T) {
-	t.Parallel()
-
 	if rootCmd.Use != "liszt" {
 		t.Errorf("rootCmd.Use = %q; want %q", rootCmd.Use, "liszt")
 	}
@@ -20,8 +18,6 @@ func TestRootHasUseAndVersion(t *testing.T) {
 }
 
 func TestRootSilencesUsageAndErrors(t *testing.T) {
-	t.Parallel()
-
 	if !rootCmd.SilenceUsage {
 		t.Errorf("rootCmd.SilenceUsage = false; want true")
 	}

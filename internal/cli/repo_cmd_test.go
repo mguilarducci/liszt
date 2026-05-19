@@ -7,8 +7,6 @@ import (
 )
 
 func TestRepoCmd_RegisteredOnRoot(t *testing.T) {
-	t.Parallel()
-
 	found := false
 	for _, c := range rootCmd.Commands() {
 		if c.Use == "repo" {
@@ -22,8 +20,6 @@ func TestRepoCmd_RegisteredOnRoot(t *testing.T) {
 }
 
 func TestRepoAddCmd_HasURLArg(t *testing.T) {
-	t.Parallel()
-
 	var addCmd *cobra.Command
 	for _, c := range rootCmd.Commands() {
 		if c.Use != "repo" {

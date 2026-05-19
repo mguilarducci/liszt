@@ -7,8 +7,6 @@ import (
 )
 
 func TestPluginCmd_RegisteredOnRoot(t *testing.T) {
-	t.Parallel()
-
 	found := false
 	for _, c := range rootCmd.Commands() {
 		if c.Use == "plugin" {
@@ -21,8 +19,6 @@ func TestPluginCmd_RegisteredOnRoot(t *testing.T) {
 }
 
 func TestPluginListAndInstallRegistered(t *testing.T) {
-	t.Parallel()
-
 	wantSubs := map[string]bool{"list": false, "install <slug>": false}
 	for _, c := range rootCmd.Commands() {
 		if c.Use != "plugin" {
@@ -42,8 +38,6 @@ func TestPluginListAndInstallRegistered(t *testing.T) {
 }
 
 func TestPluginInstall_HasFlavorFlag(t *testing.T) {
-	t.Parallel()
-
 	var installCmd *cobra.Command
 	for _, c := range rootCmd.Commands() {
 		if c.Use != "plugin" {

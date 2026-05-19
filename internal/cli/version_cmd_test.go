@@ -12,8 +12,6 @@ import (
 )
 
 func TestVersionCmd_EmitsFullString(t *testing.T) {
-	t.Parallel()
-
 	var buf bytes.Buffer
 	r := render.New(&buf, render.WithProfile(colorprofile.NoTTY))
 	cmd := NewVersionCmdWithRenderer(r)
@@ -27,8 +25,6 @@ func TestVersionCmd_EmitsFullString(t *testing.T) {
 }
 
 func TestVersionCmd_RegisteredOnRoot(t *testing.T) {
-	t.Parallel()
-
 	found := false
 	for _, c := range rootCmd.Commands() {
 		if c.Use == "version" {

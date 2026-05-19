@@ -3,8 +3,6 @@ package cli
 import "testing"
 
 func TestOutdatedCmd_Registered(t *testing.T) {
-	t.Parallel()
-
 	found := false
 	for _, c := range rootCmd.Commands() {
 		if c.Use == "outdated" {

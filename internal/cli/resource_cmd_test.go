@@ -7,8 +7,6 @@ import (
 )
 
 func TestResourceCmds_AllKindsRegistered(t *testing.T) {
-	t.Parallel()
-
 	registered := map[string]bool{}
 	for _, c := range rootCmd.Commands() {
 		registered[c.Use] = true
@@ -21,8 +19,6 @@ func TestResourceCmds_AllKindsRegistered(t *testing.T) {
 }
 
 func TestResourceCmds_ListHasPluginFlag(t *testing.T) {
-	t.Parallel()
-
 	for _, c := range rootCmd.Commands() {
 		var kind string
 		for _, k := range resource.Kinds() {
@@ -45,8 +41,6 @@ func TestResourceCmds_ListHasPluginFlag(t *testing.T) {
 }
 
 func TestResourceCmds_InstallHasFlavorFlag(t *testing.T) {
-	t.Parallel()
-
 	for _, c := range rootCmd.Commands() {
 		var kind string
 		for _, k := range resource.Kinds() {
