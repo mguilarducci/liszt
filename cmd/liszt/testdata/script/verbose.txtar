@@ -1,0 +1,22 @@
+# `--verbose` surfaces Detail lines; without it they stay hidden.
+env NO_COLOR=1
+env XDG_DATA_HOME=$WORK/data
+env XDG_CACHE_HOME=$WORK/cache
+mkdir $WORK/data/liszt
+cp seed-repos.toml $WORK/data/liszt/repos.toml
+
+# Without --verbose: Warn line shown, Detail payload hidden.
+exec liszt plugin list
+stderr 'Skipped broken/repo'
+! stderr 'name=broken/repo'
+
+# With --verbose: Detail line surfaces.
+exec liszt --verbose plugin list
+stderr 'Skipped broken/repo'
+stderr 'name=broken/repo'
+
+-- seed-repos.toml --
+[[repos]]
+name = "broken/repo"
+url = "not-a-real-url"
+sha = "0"
