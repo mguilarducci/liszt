@@ -48,6 +48,18 @@ func Save(path string, cfg *Config) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// Find returns the entry with the given name and true if present.
+// The returned pointer aliases the slice element; callers must not
+// retain it across mutations of c.Repos.
+func (c *Config) Find(name string) (*Entry, bool) {
+	for i, r := range c.Repos {
+		if r.Name == name {
+			return &c.Repos[i], true
+		}
+	}
+	return nil, false
+}
+
 // Upsert replaces an entry with the same Name or appends a new one.
 func (c *Config) Upsert(e Entry) {
 	for i, r := range c.Repos {
