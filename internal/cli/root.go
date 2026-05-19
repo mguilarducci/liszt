@@ -55,9 +55,9 @@ func Execute(ctx context.Context) error {
 func gleamColorScheme(_ lipgloss.LightDarkFunc) fang.ColorScheme {
 	return fang.ColorScheme{
 		Base:           color.Color(nil),
-		Title:          render.Palette.Dim,
+		Title:          render.Palette.PinkDeep,
 		Description:    render.Palette.Dim,
-		Codeblock:      render.Palette.Dim,
+		Codeblock:      color.Color(nil),
 		Program:        render.Palette.PinkDeep,
 		DimmedArgument: render.Palette.Dim,
 		Comment:        render.Palette.Dim,
