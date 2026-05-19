@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -18,7 +19,13 @@ var repoAddCmd = &cobra.Command{
 	Short: "Clone a marketplace repository",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
-		return RepoAdd(defaultPaths(), args[0])
+		err := RepoAdd(defaultPaths(), args[0])
+		// Already-added is an informational outcome, not a failure.
+		// Translate to exit 0 so fang does not render its ERROR block.
+		if errors.Is(err, ErrAlreadyAdded) {
+			return nil
+		}
+		return err
 	},
 }
 

@@ -21,15 +21,11 @@ func ensureDefault() *Renderer {
 	return Default
 }
 
-// Info delegates to Default.Info.
-func Info(msg string, kv ...any) { ensureDefault().Info(msg, kv...) }
-
 // Warn delegates to Default.Warn.
 func Warn(msg string, kv ...any) { ensureDefault().Warn(msg, kv...) }
 
-// Error delegates to Default.Error. Lowercase `error` is the built-in type;
-// this Error is a function — no shadowing.
-func Error(msg string, kv ...any) { ensureDefault().Error(msg, kv...) }
+// Fail delegates to Default.Fail.
+func Fail(msg string, kv ...any) { ensureDefault().Fail(msg, kv...) }
 
 // Done delegates to Default.Done.
 func Done(msg string, kv ...any) { ensureDefault().Done(msg, kv...) }
@@ -46,3 +42,21 @@ func Hint(text string) { ensureDefault().Hint(text) }
 // NewBar delegates to Default.Bar. Named NewBar (not Bar) to avoid the
 // package-level identifier colliding with the *Bar type.
 func NewBar(label string) *Bar { return ensureDefault().Bar(label) }
+
+// Detail delegates to Default.Detail.
+func Detail(msg string, kv ...any) { ensureDefault().Detail(msg, kv...) }
+
+// SetVerbose toggles Detail emission on the package-level Default renderer.
+func SetVerbose(on bool) { ensureDefault().SetVerbose(on) }
+
+// Step delegates to Default.Step.
+func Step(msg string) { ensureDefault().Step(msg) }
+
+// StepDone delegates to Default.StepDone.
+func StepDone(msg string) { ensureDefault().StepDone(msg) }
+
+// StepFail delegates to Default.StepFail.
+func StepFail(msg string, err error) { ensureDefault().StepFail(msg, err) }
+
+// NewProgress delegates to Default.NewProgress.
+func NewProgress(total int) *Progress { return ensureDefault().NewProgress(total) }

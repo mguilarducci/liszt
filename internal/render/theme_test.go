@@ -44,8 +44,8 @@ func TestThemeStylesProduceOutput(t *testing.T) {
 func TestLabelConstantsSameWidth(t *testing.T) {
 	t.Parallel()
 
-	labels := []string{lblInfo, lblDone, lblWarn, lblError}
-	want := len(lblError)
+	labels := []string{lblDone, lblWarn, lblStep}
+	want := len(lblDone)
 	for _, l := range labels {
 		if len(l) != want {
 			t.Errorf("label %q has width %d; want %d", l, len(l), want)

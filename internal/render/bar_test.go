@@ -38,11 +38,11 @@ func TestBar_DoneEmitsSuccessLine(t *testing.T) {
 	b := newTTYRenderer(&buf).Bar("label")
 	b.Done("installed", "slug", "x")
 	got := buf.String()
-	if !strings.Contains(got, "done ") {
-		t.Errorf("Done did not emit done line: %q", got)
+	if !strings.Contains(got, "✔ installed") {
+		t.Errorf("Done did not emit ✔ glyph: %q", got)
 	}
-	if !strings.Contains(got, "slug=x") {
-		t.Errorf("Done did not include kv: %q", got)
+	if !strings.Contains(got, "  slug: x") {
+		t.Errorf("Done did not include summary kv: %q", got)
 	}
 }
 
@@ -52,8 +52,12 @@ func TestBar_FailEmitsErrorLine(t *testing.T) {
 	var buf bytes.Buffer
 	b := newTTYRenderer(&buf).Bar("label")
 	b.Fail("boom", "err", "network")
-	if !strings.Contains(buf.String(), "error") {
-		t.Errorf("Fail did not emit error line: %q", buf.String())
+	got := buf.String()
+	if !strings.Contains(got, "✖ boom") {
+		t.Errorf("Fail did not emit ✖ glyph: %q", got)
+	}
+	if !strings.Contains(got, "  err: network") {
+		t.Errorf("Fail did not include summary kv: %q", got)
 	}
 }
 
@@ -112,8 +116,8 @@ func TestBar_NonTTYSingleLineOnConstruction(t *testing.T) {
 	r := New(&buf) // bytes.Buffer is non-TTY
 	r.Bar("hello")
 	got := buf.String()
-	if !strings.Contains(got, "info") {
-		t.Errorf("non-TTY bar should emit info line: %q", got)
+	if !strings.Contains(got, "step") {
+		t.Errorf("non-TTY bar should emit step line: %q", got)
 	}
 	if !strings.Contains(got, "hello") {
 		t.Errorf("non-TTY bar missing label text: %q", got)
@@ -128,11 +132,57 @@ func TestBar_NonTTYDoneEmitsDoneLine(t *testing.T) {
 	b := r.Bar("hello")
 	b.Done("finished")
 	got := buf.String()
-	if !strings.Contains(got, "done") {
-		t.Errorf("non-TTY Done should emit done line: %q", got)
+	if !strings.Contains(got, "✔ finished") {
+		t.Errorf("non-TTY Done should emit ✔ glyph + message: %q", got)
 	}
-	if !strings.Contains(got, "finished") {
-		t.Errorf("non-TTY Done missing message: %q", got)
+}
+
+func TestBar_DonePreservesFinalFrame(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(1)
+	b.Done("ok")
+	got := buf.String()
+	if !strings.Contains(got, "▌ ") {
+		t.Errorf("Done should leave bar frame on screen: %q", got)
+	}
+	// The last erase-line escape must precede the bar frame, not follow
+	// it: the bar's last paint should survive Done.
+	lastErase := strings.LastIndex(got, "\x1b[K")
+	lastBar := strings.LastIndex(got, "▌ ")
+	if lastErase > lastBar {
+		t.Errorf("erase sequence found after bar frame; bar was wiped: %q", got)
+	}
+}
+
+func TestBar_FailPreservesFinalFrame(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(0.5)
+	b.Fail("boom")
+	got := buf.String()
+	if !strings.Contains(got, "▌ ") {
+		t.Errorf("Fail should leave bar frame on screen: %q", got)
+	}
+}
+
+func TestBar_FreezeWritesNewline(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	b := newTTYRenderer(&buf).Bar("label")
+	b.Set(0.3)
+	b.Freeze()
+	got := buf.String()
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("Freeze should end with newline: %q", got)
+	}
+	if strings.HasSuffix(got, "\x1b[K\n") {
+		t.Errorf("Freeze should not erase the bar line: %q", got)
 	}
 }
 
@@ -152,13 +202,13 @@ func TestBar_MidPrintInterruptRepaints(t *testing.T) {
 	r := newTTYRenderer(&buf)
 	b := r.Bar("running")
 	b.Set(0.5)
-	r.Info("interrupting message")
+	r.Step("interrupting message")
 	got := buf.String()
 	if !strings.Contains(got, "interrupting message") {
-		t.Errorf("Info line missing: %q", got)
+		t.Errorf("Step line missing: %q", got)
 	}
 	if !strings.Contains(got, "running") {
-		t.Errorf("bar did not repaint after Info: %q", got)
+		t.Errorf("bar did not repaint after Step: %q", got)
 	}
 	b.Stop()
 }

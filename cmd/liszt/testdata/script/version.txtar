@@ -1,4 +1,4 @@
 # version subcommand prints the build identifier
 env NO_COLOR=1
 exec liszt version
-stderr 'liszt 0\.0\.0-dev'
+stdout 'liszt 0\.0\.0-dev'

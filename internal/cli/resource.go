@@ -88,10 +88,9 @@ func ResourceInstall(p Paths, kind, slug, flavor string) error {
 	m := matches[0]
 	m.flavor = flavor
 	if len(matches) > 1 {
-		render.Warn(
-			fmt.Sprintf("%d sources for %q; picking %s:%s", len(matches), slug, m.pluginName, m.slug),
-			"repo", m.repoName,
-		)
+		render.Warn(fmt.Sprintf("%d sources for %q; picking %s:%s",
+			len(matches), slug, m.pluginName, m.slug))
+		render.Detail("disambiguation", "repo", m.repoName)
 	}
 
 	bar.StageMaterialize(slug)

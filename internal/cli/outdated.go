@@ -55,7 +55,8 @@ func Outdated(p Paths) error {
 			}
 			sha, err := gitx.LsRemoteHead(url)
 			if err != nil {
-				render.Warn("ls-remote failed", "repo", e.Repo, "err", err)
+				render.Warn("could not reach remote")
+				render.Detail("ls-remote failed", "repo", e.Repo, "err", err)
 				unknown++
 				if total > 0 {
 					bar.Set(float64(i+1) / float64(total))
@@ -81,8 +82,10 @@ func Outdated(p Paths) error {
 	}
 	bar.Done("outdated", "drifts", len(drifts), "up_to_date", upToDate, "unknown", unknown)
 	for _, d := range drifts {
-		render.Info(
-			fmt.Sprintf("%s %s [%s]", d.entry.Kind, d.entry.Slug, d.entry.Flavor),
+		render.Hint(fmt.Sprintf("- %s %s [%s]  %s..%s",
+			d.entry.Kind, d.entry.Slug, d.entry.Flavor,
+			d.entry.SHA[:12], d.latest[:12]))
+		render.Detail("drift",
 			"plugin", d.entry.Plugin,
 			"repo", d.entry.Repo,
 			"locked", d.entry.SHA[:12],

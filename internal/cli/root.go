@@ -29,16 +29,21 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var noColor bool
+var (
+	noColor bool
+	verbose bool
+)
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable color output")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "show technical detail")
 	rootCmd.PersistentPreRun = func(_ *cobra.Command, _ []string) {
 		if noColor {
 			// Setenv only fails on platforms without env support; failure
 			// here means colors stay on, which is harmless.
 			_ = os.Setenv("NO_COLOR", "1")
 		}
+		render.SetVerbose(verbose)
 	}
 }
 
@@ -54,7 +59,7 @@ func Execute(ctx context.Context) error {
 }
 
 // gleamColorScheme maps the Gleam palette onto fang's ColorScheme so help,
-// version, and error output share the same look-and-feel as render.Info,
+// version, and error output share the same look-and-feel as render.Step,
 // render.Bar, etc. The function signature matches fang.ColorSchemeFunc and
 // is invoked with a lipgloss.LightDarkFunc that resolves to the terminal's
 // preferred variant; we ignore the light/dark argument because the Gleam

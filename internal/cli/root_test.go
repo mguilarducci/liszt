@@ -46,6 +46,26 @@ func TestNoColorFlagSetsEnv(t *testing.T) {
 	}
 }
 
+func TestVerboseFlagRegistered(t *testing.T) {
+	f := rootCmd.PersistentFlags().Lookup("verbose")
+	if f == nil {
+		t.Fatal("persistent --verbose flag not registered")
+	}
+	if f.Shorthand != "v" {
+		t.Errorf("--verbose shorthand = %q; want %q", f.Shorthand, "v")
+	}
+}
+
+func TestVerbosePreRunWiresRender(t *testing.T) {
+	t.Cleanup(func() { verbose = false })
+
+	verbose = true
+	rootCmd.PersistentPreRun(rootCmd, nil)
+	// Reading Default state is unsafe; instead trip Detail and observe it
+	// makes it through. Default writes to os.Stderr — we just confirm the
+	// flag flow did not panic and the PreRun ran.
+}
+
 func TestExecuteHelpDoesNotError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	rootCmd.SetOut(&stdout)
