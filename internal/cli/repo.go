@@ -16,64 +16,88 @@ import (
 var ErrAlreadyAdded = errors.New("repo already added")
 
 // RepoAdd clones url into p.Cache and appends the entry to p.Repos.
-// Preflight: if the registry already lists the resolved name, RepoAdd
-// returns ErrAlreadyAdded without cloning. Refresh is the future
-// `liszt repo update` command's responsibility.
+// Five steps drive a single Progress bar: resolve URL, preflight registry,
+// clone, read manifest, persist. Technical payload (URL, dest, SHA, path)
+// rides on Detail and is gated by --verbose.
 func RepoAdd(p Paths, url string) error {
 	prev := gitx.SetOutput(io.Discard)
 	defer gitx.SetOutput(prev)
 
-	render.Info("resolving repo", "url", url)
+	render.Detail("url=" + url)
+
+	progress := render.NewProgress(5)
+
+	progress.Step("Resolving " + url)
 	owner, repo, err := gitx.ParseGitHubURL(url)
 	if err != nil {
-		render.Fail("parse url failed", "url", url, "err", err)
+		progress.StepFail(err)
 		return err
 	}
 	name := owner + "/" + repo
 	dest := gitx.RepoPath(p.Cache, owner, repo)
+	render.Detail("resolved", "name", name, "dest", dest)
+	// Replace the in-flight step label with the resolved name so the ✓
+	// line committed by the next Step reads `✓ Resolved <name>`.
+	progress.SetLabel("Resolved " + name)
 
+	progress.Step("Checking registry")
 	cfg, err := repos.Load(p.Repos)
 	if err != nil {
-		render.Fail("repos load failed", "path", p.Repos, "err", err)
+		progress.StepFail(err)
+		render.Detail("repos load failed", "path", p.Repos, "err", err)
 		return err
 	}
 	if _, ok := cfg.Find(name); ok {
-		render.Fail(name+" already added",
-			"hint", "Run `liszt repo update "+name+"` to refresh")
+		progress.StepFail(ErrAlreadyAdded)
+		render.Fail(name + " already added")
+		render.Hint("→ Run `liszt repo update " + name + "` to refresh")
 		return ErrAlreadyAdded
 	}
+	progress.SetLabel("Not yet registered")
 
-	render.Info("cloning", "name", name, "dest", dest)
-	bar := render.NewBar("cloning " + name)
-	bar.SetIndeterminate(true)
+	progress.Step("Cloning " + name)
 	if err := gitx.EnsureClone(url, dest); err != nil {
-		bar.Fail("clone failed", "url", url, "err", err)
+		progress.StepFail(err)
+		render.Detail("clone failed", "url", url, "err", err)
 		return err
 	}
-	bar.Stop()
-
 	sha, err := gitx.HeadSHA(dest)
 	if err != nil {
-		render.Fail("head-sha failed", "dest", dest, "err", err)
+		progress.StepFail(err)
+		render.Detail("head-sha failed", "dest", dest, "err", err)
 		return err
 	}
-	render.Info("cloned", "sha", sha[:12])
+	render.Detail("cloned", "sha", sha[:12])
+	progress.SetLabel("Cloned " + name)
 
-	render.Info("reading marketplace.json")
+	progress.Step("Reading marketplace.json")
 	mp, flavor, mpErr := marketplace.Read(dest)
 	if mpErr != nil {
-		render.Warn("marketplace.json failed to read")
+		render.Warn("marketplace.json missing or invalid")
+		render.Detail("marketplace.json", "err", mpErr)
 	} else {
-		render.Info("marketplace", "name", mp.Name, "flavor", flavor, "plugins", len(mp.Plugins))
+		render.Detail("marketplace", "name", mp.Name, "flavor", flavor, "plugins", len(mp.Plugins))
+		progress.SetLabel("Read marketplace.json")
 	}
 
-	render.Info("saving repos.toml", "path", p.Repos)
+	progress.Step("Saving to repos.toml")
 	cfg.Repos = append(cfg.Repos, repos.Entry{Name: name, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
-		render.Fail("repos save failed", "path", p.Repos, "err", err)
+		progress.StepFail(err)
+		render.Detail("repos save failed", "path", p.Repos, "err", err)
 		return err
 	}
+	render.Detail("repos.toml", "path", p.Repos)
+	progress.SetLabel("Saved to repos.toml")
 
-	render.Done("repo added", "name", name)
+	if mpErr != nil {
+		progress.Done("Added " + name)
+	} else {
+		progress.Done("Added "+name,
+			"marketplace", mp.Name,
+			"plugins", len(mp.Plugins))
+	}
+	render.Hint("→ Run `liszt plugin list` to see available plugins")
+	render.Hint("→ Run `liszt plugin install <name>` to install")
 	return nil
 }

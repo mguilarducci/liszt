@@ -47,6 +47,19 @@ func (p *Progress) Step(label string) {
 	p.bar.repaint()
 }
 
+// SetLabel rewrites the in-flight step label without advancing the bar.
+// Use this between Step calls to swap a verb-tense label (e.g. update
+// "Resolving foo" to "Resolved foo" once the work has finished so the
+// next Step commits the past-tense form as a `✓` line).
+func (p *Progress) SetLabel(label string) {
+	if p.failed {
+		return
+	}
+	p.label = label
+	p.bar.Update(label)
+	p.bar.repaint()
+}
+
 // Done emits a final `✓ <current label>` line, then calls Bar.Done which
 // prints the `✔ msg` summary block.
 func (p *Progress) Done(msg string, kv ...any) {
