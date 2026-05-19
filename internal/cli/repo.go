@@ -33,8 +33,9 @@ func RepoAdd(p Paths, url string) error {
 		bar.Fail("head-sha failed", "dest", dest, "err", err)
 		return err
 	}
-	if _, _, err := marketplace.Read(dest); err != nil {
-		render.Warn(err.Error())
+	mp, flavor, mpErr := marketplace.Read(dest)
+	if mpErr != nil {
+		render.Warn(mpErr.Error())
 	}
 
 	cfg, err := repos.Load(p.Repos)
@@ -42,12 +43,36 @@ func RepoAdd(p Paths, url string) error {
 		bar.Fail("repos load failed", "path", p.Repos, "err", err)
 		return err
 	}
+	existing := false
+	for _, e := range cfg.Repos {
+		if e.Name == owner+"/"+repo {
+			existing = true
+			break
+		}
+	}
 	cfg.Upsert(repos.Entry{Name: owner + "/" + repo, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
 		bar.Fail("repos save failed", "path", p.Repos, "err", err)
 		return err
 	}
 
-	bar.Done("repo added", "name", owner+"/"+repo, "sha", sha[:12])
+	verb := "repo added"
+	if existing {
+		verb = "repo updated"
+	}
+	kv := []any{
+		"name", owner + "/" + repo,
+		"url", url,
+		"sha", sha[:12],
+		"cache", dest,
+	}
+	if mp != nil {
+		kv = append(kv,
+			"marketplace", mp.Name,
+			"flavor", flavor,
+			"plugins", len(mp.Plugins),
+		)
+	}
+	bar.Done(verb, kv...)
 	return nil
 }
