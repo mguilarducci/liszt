@@ -4,12 +4,13 @@ go 1.26.3
 
 require (
 	charm.land/lipgloss/v2 v2.0.3
+	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/hexops/autogold/v2 v2.3.1
+	github.com/mattn/go-isatty v0.0.20
 	github.com/pelletier/go-toml/v2 v2.3.1
 )
 
 require (
-	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20251205161215-1948445e3318 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
@@ -23,7 +24,6 @@ require (
 	github.com/hexops/valast v1.5.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/nightlyone/lockfile v1.0.0 // indirect
