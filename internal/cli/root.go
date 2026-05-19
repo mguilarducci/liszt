@@ -29,16 +29,21 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var noColor bool
+var (
+	noColor bool
+	verbose bool
+)
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable color output")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "show technical detail")
 	rootCmd.PersistentPreRun = func(_ *cobra.Command, _ []string) {
 		if noColor {
 			// Setenv only fails on platforms without env support; failure
 			// here means colors stay on, which is harmless.
 			_ = os.Setenv("NO_COLOR", "1")
 		}
+		render.SetVerbose(verbose)
 	}
 }
 
