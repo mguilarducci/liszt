@@ -44,3 +44,24 @@ const (
 	lblWarn  = "warn "
 	lblError = "error"
 )
+
+// Palette exposes the Gleam palette colors used by the render package. Other
+// packages (notably the CLI's fang integration) use these to keep fang's
+// styled help/version/error output aligned with the in-app message colors.
+var Palette = struct {
+	PinkDeep   color.Color
+	PinkBright color.Color
+	Info       color.Color
+	Done       color.Color
+	Warn       color.Color
+	Error      color.Color
+	Dim        color.Color
+}{
+	PinkDeep:   cPinkDeep,
+	PinkBright: cPinkBright,
+	Info:       cInfo,
+	Done:       cDone,
+	Warn:       cWarn,
+	Error:      cError,
+	Dim:        cDim,
+}

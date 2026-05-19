@@ -3,11 +3,14 @@ package cli
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"os"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/version"
 )
 
@@ -33,11 +36,39 @@ func init() {
 }
 
 // Execute runs the root command through charmbracelet/fang. fang styles
-// --help, --version, and error output. Callers should pass a
+// --help, --version, and error output using the Gleam palette so its output
+// matches the in-app render package. Callers should pass a
 // context.Background() unless they need cancellation semantics.
 func Execute(ctx context.Context) error {
-	if err := fang.Execute(ctx, rootCmd); err != nil {
+	if err := fang.Execute(ctx, rootCmd, fang.WithColorSchemeFunc(gleamColorScheme)); err != nil {
 		return fmt.Errorf("execute: %w", err)
 	}
 	return nil
+}
+
+// gleamColorScheme maps the Gleam palette onto fang's ColorScheme so help,
+// version, and error output share the same look-and-feel as render.Info,
+// render.Bar, etc. The function signature matches fang.ColorSchemeFunc and
+// is invoked with a lipgloss.LightDarkFunc that resolves to the terminal's
+// preferred variant; we ignore the light/dark argument because the Gleam
+// palette is dark-tuned (see spec §15 on light-mode being out of scope).
+func gleamColorScheme(_ lipgloss.LightDarkFunc) fang.ColorScheme {
+	return fang.ColorScheme{
+		Base:           color.Color(nil),
+		Title:          render.Palette.PinkDeep,
+		Description:    render.Palette.Dim,
+		Codeblock:      render.Palette.Dim,
+		Program:        render.Palette.PinkBright,
+		DimmedArgument: render.Palette.Dim,
+		Comment:        render.Palette.Dim,
+		Flag:           render.Palette.Info,
+		FlagDefault:    render.Palette.Dim,
+		Command:        render.Palette.Info,
+		QuotedString:   render.Palette.Warn,
+		Argument:       render.Palette.Done,
+		Help:           render.Palette.Dim,
+		Dash:           render.Palette.Dim,
+		ErrorHeader:    [2]color.Color{render.Palette.PinkBright, render.Palette.Error},
+		ErrorDetails:   render.Palette.Error,
+	}
 }
