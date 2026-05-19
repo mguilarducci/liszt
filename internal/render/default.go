@@ -60,3 +60,6 @@ func StepDone(msg string) { ensureDefault().StepDone(msg) }
 
 // StepFail delegates to Default.StepFail.
 func StepFail(msg string, err error) { ensureDefault().StepFail(msg, err) }
+
+// NewProgress delegates to Default.NewProgress.
+func NewProgress(total int) *Progress { return ensureDefault().NewProgress(total) }
