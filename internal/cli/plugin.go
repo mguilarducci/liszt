@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/mguilarducci/liszt/internal/claudestate"
 	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/mguilarducci/liszt/internal/marketplace"
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/repos"
 )
 
@@ -20,32 +22,32 @@ func PluginList(p Paths) error {
 		return err
 	}
 	if len(cfg.Repos) == 0 {
-		fmt.Println("no repos. add one with: liszt repo add <url>")
+		render.Hint("no repos. add one with: liszt repo add <url>")
 		return nil
 	}
 	for i, r := range cfg.Repos {
 		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
+			render.Warn("skip", "name", r.Name, "err", err)
 			continue
 		}
 		mp, _, err := marketplace.Read(gitx.RepoPath(p.Cache, owner, repo))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "skip %s: %v\n", r.Name, err)
+			render.Warn("skip", "name", r.Name, "err", err)
 			continue
 		}
 		if i > 0 {
 			fmt.Println()
 		}
-		fmt.Printf("== %s (%d plugins) ==\n", r.Name, len(mp.Plugins))
+		render.Header(fmt.Sprintf("%s (%d plugins)", r.Name, len(mp.Plugins)))
 		for _, plug := range mp.Plugins {
-			fmt.Printf("- %s", plug.Name)
+			label := plug.Name
 			if plug.Version != "" {
-				fmt.Printf(" (v%s)", plug.Version)
+				label = fmt.Sprintf("%s (v%s)", plug.Name, plug.Version)
 			}
-			fmt.Println()
+			fmt.Printf("- %s\n", label)
 			if plug.Description != "" {
-				fmt.Printf("  %s\n", plug.Description)
+				render.Hint("  " + plug.Description)
 			}
 		}
 	}
@@ -54,8 +56,14 @@ func PluginList(p Paths) error {
 
 // PluginInstall handles `liszt plugin install <slug> --flavor <flavor>`.
 func PluginInstall(p Paths, slug, flavor string) error {
+	bar := newInstallBar(slug)
+	prev := gitx.SetOutput(io.Discard)
+	defer gitx.SetOutput(prev)
+
+	bar.StageResolve(slug)
 	cfg, err := repos.Load(p.Repos)
 	if err != nil {
+		bar.Fail("repos load failed", "path", p.Repos, "err", err)
 		return err
 	}
 	for _, r := range cfg.Repos {
@@ -82,20 +90,32 @@ func PluginInstall(p Paths, slug, flavor string) error {
 				path:       mp.ResolvePluginPath(plug),
 			}
 			if flavor == "claude" {
-				if err := claudeInstall(p, r, owner, repo, root, mp, plug); err != nil {
+				if err := claudeInstallWithBar(p, r, owner, repo, root, mp, plug, bar); err != nil {
+					bar.Fail("claude install failed", "slug", slug, "err", err)
 					return err
 				}
+			} else {
+				bar.StageCloneEnd()
+				bar.StageMaterialize(slug)
 			}
-			return recordInstall(p, m, slug)
+			bar.StageManifest()
+			if err := recordInstall(p, m, slug); err != nil {
+				bar.Fail("manifest write failed", "slug", slug, "err", err)
+				return err
+			}
+			bar.Done(slug, flavor)
+			return nil
 		}
 	}
-	fmt.Fprintf(os.Stderr, "plugin %q not found\n", slug)
-	os.Exit(1)
-	return nil
+	err = fmt.Errorf("plugin %q not found", slug)
+	bar.Fail("plugin not found", "slug", slug)
+	return err
 }
 
-// claudeInstall materializes plug into ~/.claude/plugins/ and enables it.
-func claudeInstall(p Paths, r repos.Entry, owner, repoName, mpClone string, mp *marketplace.Marketplace, plug marketplace.Plugin) error {
+// claudeInstallWithBar materializes plug into ~/.claude/plugins/ and enables
+// it. Drives the install bar through clone (when source is external) and
+// materialize stages.
+func claudeInstallWithBar(p Paths, r repos.Entry, owner, repoName, mpClone string, mp *marketplace.Marketplace, plug marketplace.Plugin, bar *installBar) error {
 	src, err := marketplace.ParseSource(plug.Source)
 	if err != nil {
 		return err
@@ -108,16 +128,21 @@ func claudeInstall(p Paths, r repos.Entry, owner, repoName, mpClone string, mp *
 		if err != nil {
 			return fmt.Errorf("parse git-subdir url %q: %w", src.External.URL, err)
 		}
+		bar.StageCloneBegin(plug.Name)
 		extClone := gitx.RepoPath(p.Cache, extOwner, extRepo)
 		if err := gitx.CloneAtSHA(src.External.URL, src.External.SHA, extClone); err != nil {
 			return err
 		}
+		bar.StageCloneEnd()
 		srcDir = filepath.Join(extClone, src.External.Path)
 		srcSha = src.External.SHA
 	default:
+		bar.StageCloneEnd()
 		srcDir = filepath.Join(mpClone, src.Subdir)
 		srcSha = r.SHA
 	}
+
+	bar.StageMaterialize(plug.Name)
 
 	version := marketplace.PluginManifestVersion(srcDir)
 	if version == "" {

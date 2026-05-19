@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/mguilarducci/liszt/internal/lock"
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/repos"
 )
 
@@ -20,7 +21,6 @@ func Outdated(p Paths) error {
 		return err
 	}
 
-	remoteHead := map[string]string{}
 	urlFor := map[string]string{}
 	for _, r := range reposCfg.Repos {
 		urlFor[r.Name] = r.URL
@@ -30,22 +30,36 @@ func Outdated(p Paths) error {
 		entry  lock.Entry
 		latest string
 	}
+
+	bar := render.NewBar("checking remotes")
+	prev := gitx.SetOutput(io.Discard)
+	defer gitx.SetOutput(prev)
+
+	remoteHead := map[string]string{}
 	var drifts []drift
 	upToDate := 0
 	unknown := 0
+	total := len(cfg.Locked)
 
-	for _, e := range cfg.Locked {
+	for i, e := range cfg.Locked {
+		bar.Update(e.Repo)
 		latest, ok := remoteHead[e.Repo]
 		if !ok {
 			url := urlFor[e.Repo]
 			if url == "" {
 				unknown++
+				if total > 0 {
+					bar.Set(float64(i+1) / float64(total))
+				}
 				continue
 			}
 			sha, err := gitx.LsRemoteHead(url)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warn: ls-remote %s: %v\n", e.Repo, err)
+				render.Warn("ls-remote failed", "repo", e.Repo, "err", err)
 				unknown++
+				if total > 0 {
+					bar.Set(float64(i+1) / float64(total))
+				}
 				continue
 			}
 			latest = sha
@@ -53,21 +67,27 @@ func Outdated(p Paths) error {
 		}
 		if latest == e.SHA {
 			upToDate++
-			continue
+		} else {
+			drifts = append(drifts, drift{entry: e, latest: latest})
 		}
-		drifts = append(drifts, drift{entry: e, latest: latest})
+		if total > 0 {
+			bar.Set(float64(i+1) / float64(total))
+		}
 	}
 
 	if len(drifts) == 0 {
-		fmt.Printf("up to date: %d locked entries\n", upToDate)
+		bar.Done("up to date", "entries", upToDate)
 		return nil
 	}
-	fmt.Printf("outdated: %d (up to date: %d, unknown: %d)\n\n", len(drifts), upToDate, unknown)
+	bar.Done("outdated", "drifts", len(drifts), "up_to_date", upToDate, "unknown", unknown)
 	for _, d := range drifts {
-		fmt.Printf("- %s %s [%s] (plugin: %s)\n", d.entry.Kind, d.entry.Slug, d.entry.Flavor, d.entry.Plugin)
-		fmt.Printf("    repo:    %s\n", d.entry.Repo)
-		fmt.Printf("    locked:  %s\n", d.entry.SHA[:12])
-		fmt.Printf("    remote:  %s\n", d.latest[:12])
+		render.Info(
+			fmt.Sprintf("%s %s [%s]", d.entry.Kind, d.entry.Slug, d.entry.Flavor),
+			"plugin", d.entry.Plugin,
+			"repo", d.entry.Repo,
+			"locked", d.entry.SHA[:12],
+			"remote", d.latest[:12],
+		)
 	}
 	return nil
 }

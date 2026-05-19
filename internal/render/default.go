@@ -1,0 +1,48 @@
+package render
+
+import (
+	"os"
+	"sync"
+)
+
+// Default is the package-level Renderer used by the top-level delegating
+// functions. It is constructed lazily on first use so tests and CLI startup
+// can mutate env (NO_COLOR, CLICOLOR_FORCE, ...) before any render call
+// triggers construction.
+var (
+	defaultOnce sync.Once
+	Default     *Renderer
+)
+
+func ensureDefault() *Renderer {
+	defaultOnce.Do(func() {
+		Default = New(os.Stderr)
+	})
+	return Default
+}
+
+// Info delegates to Default.Info.
+func Info(msg string, kv ...any) { ensureDefault().Info(msg, kv...) }
+
+// Warn delegates to Default.Warn.
+func Warn(msg string, kv ...any) { ensureDefault().Warn(msg, kv...) }
+
+// Error delegates to Default.Error. Lowercase `error` is the built-in type;
+// this Error is a function — no shadowing.
+func Error(msg string, kv ...any) { ensureDefault().Error(msg, kv...) }
+
+// Done delegates to Default.Done.
+func Done(msg string, kv ...any) { ensureDefault().Done(msg, kv...) }
+
+// Header delegates to Default.Header.
+func Header(text string) { ensureDefault().Header(text) }
+
+// Subheader delegates to Default.Subheader.
+func Subheader(text string) { ensureDefault().Subheader(text) }
+
+// Hint delegates to Default.Hint.
+func Hint(text string) { ensureDefault().Hint(text) }
+
+// NewBar delegates to Default.Bar. Named NewBar (not Bar) to avoid the
+// package-level identifier colliding with the *Bar type.
+func NewBar(label string) *Bar { return ensureDefault().Bar(label) }

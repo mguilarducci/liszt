@@ -1,0 +1,7 @@
+# --help prints program name and lists verbs
+env NO_COLOR=1
+exec liszt --help
+stdout 'liszt'
+stdout 'repo'
+stdout 'plugin'
+stdout 'outdated'

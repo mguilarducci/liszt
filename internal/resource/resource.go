@@ -32,6 +32,15 @@ func register(k Kind) {
 // All returns every registered kind in a stable order.
 func All() []Kind { return orderedKinds }
 
+// Kinds returns the registered kind names in stable order.
+func Kinds() []string {
+	out := make([]string, 0, len(orderedKinds))
+	for _, k := range orderedKinds {
+		out = append(out, k.Name)
+	}
+	return out
+}
+
 // Get returns the kind with the given name.
 func Get(name string) (Kind, bool) {
 	k, ok := byName[name]

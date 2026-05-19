@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,9 +9,55 @@ import (
 	"github.com/mguilarducci/liszt/internal/lock"
 	"github.com/mguilarducci/liszt/internal/manifest"
 	"github.com/mguilarducci/liszt/internal/marketplace"
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/repos"
 	"github.com/mguilarducci/liszt/internal/resource"
 )
+
+// installBar drives the multi-step install progress bar. Callers invoke
+// each Stage* method between the corresponding work step; the clone stage
+// flips to indeterminate mode since clone duration is opaque.
+type installBar struct {
+	bar *render.Bar
+}
+
+func newInstallBar(label string) *installBar {
+	return &installBar{bar: render.NewBar("installing " + label)}
+}
+
+func (b *installBar) StageResolve(slug string) {
+	b.bar.Update("resolving " + slug)
+	b.bar.Set(0.0)
+}
+
+func (b *installBar) StageCloneBegin(slug string) {
+	b.bar.Update("cloning " + slug)
+	b.bar.SetIndeterminate(true)
+	b.bar.Set(0.25)
+}
+
+func (b *installBar) StageCloneEnd() {
+	b.bar.SetIndeterminate(false)
+	b.bar.Set(0.50)
+}
+
+func (b *installBar) StageMaterialize(slug string) {
+	b.bar.Update("materializing " + slug)
+	b.bar.Set(0.75)
+}
+
+func (b *installBar) StageManifest() {
+	b.bar.Update("writing manifest")
+	b.bar.Set(1.0)
+}
+
+func (b *installBar) Done(slug, flavor string) {
+	b.bar.Done("installed", "slug", slug, "flavor", flavor)
+}
+
+func (b *installBar) Fail(msg string, kv ...any) {
+	b.bar.Fail(msg, kv...)
+}
 
 // match holds a resolved artifact location.
 type match struct {
@@ -23,25 +68,6 @@ type match struct {
 	repoName   string
 	sha        string
 	path       string
-}
-
-// ParseInstallArgs reads "<slug> [--flavor X]" from positional args.
-// Exits with code 2 on malformed input (preserves current behavior).
-func ParseInstallArgs(args []string) (slug, flavor string) {
-	if len(args) > 0 {
-		slug = args[0]
-	}
-	for i := 1; i < len(args); i++ {
-		if args[i] == "--flavor" && i+1 < len(args) {
-			flavor = args[i+1]
-			i++
-		}
-	}
-	if flavor != "claude" && flavor != "copilot" {
-		fmt.Fprintln(os.Stderr, "error: --flavor required, must be 'claude' or 'copilot'")
-		os.Exit(2)
-	}
-	return
 }
 
 // resolveSlug scans repos for an artifact of the given kind matching slug.
@@ -125,6 +151,5 @@ func recordInstall(p Paths, m match, requestedSlug string) error {
 		return err
 	}
 
-	fmt.Printf("installed %s %s [%s] (from %s @ %s)\n", m.kind, m.slug, m.flavor, m.repoName, m.sha[:12])
 	return nil
 }
