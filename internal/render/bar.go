@@ -41,7 +41,7 @@ func (r *Renderer) Bar(label string) *Bar {
 	if !r.isTTY {
 		// Non-TTY: emit a single info line on creation. Stop/Done/Fail emit
 		// the final line. No animation loop, no cursor control.
-		line := r.formatLine(styInfoBar, styInfoLbl, lblInfo, label, nil)
+		line := r.formatLine(styStepBar, styStepLbl, lblStep, label, nil)
 		r.mu.Lock()
 		r.writeString(line)
 		r.mu.Unlock()
@@ -81,8 +81,8 @@ func (b *Bar) repaint() {
 	}
 	label, _ := b.label.Load().(string)
 	cells := b.renderCells(pct)
-	bar := styInfoBar.Render("▌")
-	lbl := styInfoLbl.Render(lblInfo)
+	bar := styStepBar.Render("▌")
+	lbl := styStepLbl.Render(lblStep)
 	var pctStr string
 	if b.indeterminate.Load() {
 		pctStr = styDim.Render("····")

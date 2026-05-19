@@ -31,11 +31,13 @@ var (
 	styDoneBar  = lipgloss.NewStyle().Foreground(cDone)
 	styWarnBar  = lipgloss.NewStyle().Foreground(cWarn)
 	styErrorBar = lipgloss.NewStyle().Foreground(cError)
+	styStepBar  = lipgloss.NewStyle().Foreground(cInfo)
 
 	styInfoLbl  = lipgloss.NewStyle().Foreground(cInfo).Bold(true)
 	styDoneLbl  = lipgloss.NewStyle().Foreground(cDone).Bold(true)
 	styWarnLbl  = lipgloss.NewStyle().Foreground(cWarn).Bold(true)
 	styErrorLbl = lipgloss.NewStyle().Foreground(cError).Bold(true)
+	styStepLbl  = lipgloss.NewStyle().Foreground(cInfo).Bold(true)
 )
 
 const (
@@ -43,6 +45,7 @@ const (
 	lblDone  = "done "
 	lblWarn  = "warn "
 	lblError = "error"
+	lblStep  = "step "
 )
 
 // Palette exposes the Gleam palette colors used by the render package. Other

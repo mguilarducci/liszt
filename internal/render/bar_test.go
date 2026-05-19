@@ -112,8 +112,8 @@ func TestBar_NonTTYSingleLineOnConstruction(t *testing.T) {
 	r := New(&buf) // bytes.Buffer is non-TTY
 	r.Bar("hello")
 	got := buf.String()
-	if !strings.Contains(got, "info") {
-		t.Errorf("non-TTY bar should emit info line: %q", got)
+	if !strings.Contains(got, "step") {
+		t.Errorf("non-TTY bar should emit step line: %q", got)
 	}
 	if !strings.Contains(got, "hello") {
 		t.Errorf("non-TTY bar missing label text: %q", got)
@@ -152,13 +152,13 @@ func TestBar_MidPrintInterruptRepaints(t *testing.T) {
 	r := newTTYRenderer(&buf)
 	b := r.Bar("running")
 	b.Set(0.5)
-	r.Info("interrupting message")
+	r.Step("interrupting message")
 	got := buf.String()
 	if !strings.Contains(got, "interrupting message") {
-		t.Errorf("Info line missing: %q", got)
+		t.Errorf("Step line missing: %q", got)
 	}
 	if !strings.Contains(got, "running") {
-		t.Errorf("bar did not repaint after Info: %q", got)
+		t.Errorf("bar did not repaint after Step: %q", got)
 	}
 	b.Stop()
 }
