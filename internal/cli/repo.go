@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 
 	"github.com/mguilarducci/liszt/internal/gitx"
@@ -9,10 +10,15 @@ import (
 	"github.com/mguilarducci/liszt/internal/repos"
 )
 
-// RepoAdd clones url into p.Cache and upserts the entry into p.Repos. Each
-// stage emits its own info line so the user sees the operation as a
-// sequence of persistent steps; the clone step (the only slow opaque op)
-// is wrapped in an indeterminate bar that disappears once it finishes.
+// ErrAlreadyAdded is returned by RepoAdd when the registry already contains
+// an entry for the resolved repo name. Callers (CLI / tests) match on this
+// sentinel via errors.Is.
+var ErrAlreadyAdded = errors.New("repo already added")
+
+// RepoAdd clones url into p.Cache and appends the entry to p.Repos.
+// Preflight: if the registry already lists the resolved name, RepoAdd
+// returns ErrAlreadyAdded without cloning. Refresh is the future
+// `liszt repo update` command's responsibility.
 func RepoAdd(p Paths, url string) error {
 	prev := gitx.SetOutput(io.Discard)
 	defer gitx.SetOutput(prev)
@@ -25,6 +31,17 @@ func RepoAdd(p Paths, url string) error {
 	}
 	name := owner + "/" + repo
 	dest := gitx.RepoPath(p.Cache, owner, repo)
+
+	cfg, err := repos.Load(p.Repos)
+	if err != nil {
+		render.Fail("repos load failed", "path", p.Repos, "err", err)
+		return err
+	}
+	if _, ok := cfg.Find(name); ok {
+		render.Fail(name+" already added",
+			"hint", "Run `liszt repo update "+name+"` to refresh")
+		return ErrAlreadyAdded
+	}
 
 	render.Info("cloning", "name", name, "dest", dest)
 	bar := render.NewBar("cloning " + name)
@@ -45,18 +62,13 @@ func RepoAdd(p Paths, url string) error {
 	render.Info("reading marketplace.json")
 	mp, flavor, mpErr := marketplace.Read(dest)
 	if mpErr != nil {
-		render.Warn("marketplace.json", "err", mpErr)
+		render.Warn("marketplace.json failed to read")
 	} else {
 		render.Info("marketplace", "name", mp.Name, "flavor", flavor, "plugins", len(mp.Plugins))
 	}
 
 	render.Info("saving repos.toml", "path", p.Repos)
-	cfg, err := repos.Load(p.Repos)
-	if err != nil {
-		render.Fail("repos load failed", "path", p.Repos, "err", err)
-		return err
-	}
-	cfg.Upsert(repos.Entry{Name: name, URL: url, SHA: sha})
+	cfg.Repos = append(cfg.Repos, repos.Entry{Name: name, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
 		render.Fail("repos save failed", "path", p.Repos, "err", err)
 		return err
