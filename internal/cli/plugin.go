@@ -28,12 +28,14 @@ func PluginList(p Paths) error {
 	for i, r := range cfg.Repos {
 		owner, repo, err := gitx.ParseGitHubURL(r.URL)
 		if err != nil {
-			render.Warn("skip", "name", r.Name, "err", err)
+			render.Warn("Skipped " + r.Name)
+			render.Detail("skip", "name", r.Name, "err", err)
 			continue
 		}
 		mp, _, err := marketplace.Read(gitx.RepoPath(p.Cache, owner, repo))
 		if err != nil {
-			render.Warn("skip", "name", r.Name, "err", err)
+			render.Warn("Skipped " + r.Name)
+			render.Detail("skip", "name", r.Name, "err", err)
 			continue
 		}
 		if i > 0 {
