@@ -20,3 +20,25 @@ func ensureDefault() *Renderer {
 	})
 	return Default
 }
+
+// Info delegates to Default.Info.
+func Info(msg string, kv ...any) { ensureDefault().Info(msg, kv...) }
+
+// Warn delegates to Default.Warn.
+func Warn(msg string, kv ...any) { ensureDefault().Warn(msg, kv...) }
+
+// Error delegates to Default.Error. Lowercase `error` is the built-in type;
+// this Error is a function — no shadowing.
+func Error(msg string, kv ...any) { ensureDefault().Error(msg, kv...) }
+
+// Done delegates to Default.Done.
+func Done(msg string, kv ...any) { ensureDefault().Done(msg, kv...) }
+
+// Header delegates to Default.Header.
+func Header(text string) { ensureDefault().Header(text) }
+
+// Subheader delegates to Default.Subheader.
+func Subheader(text string) { ensureDefault().Subheader(text) }
+
+// Hint delegates to Default.Hint.
+func Hint(text string) { ensureDefault().Hint(text) }
