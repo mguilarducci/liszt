@@ -1,27 +1,21 @@
 package cli
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/mguilarducci/liszt/internal/gitx"
 	"github.com/mguilarducci/liszt/internal/marketplace"
+	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/repos"
 )
 
-// Repo handles `liszt repo add <github-url>`.
-func Repo(p Paths, args []string) error {
-	if len(args) < 2 || args[0] != "add" {
-		fmt.Fprintln(os.Stderr, "usage: liszt repo add <github-url>")
-		os.Exit(2)
-	}
-	owner, repo, err := gitx.ParseGitHubURL(args[1])
+// RepoAdd clones url into p.Cache and upserts the entry into p.Repos.
+func RepoAdd(p Paths, url string) error {
+	owner, repo, err := gitx.ParseGitHubURL(url)
 	if err != nil {
 		return err
 	}
 
 	dest := gitx.RepoPath(p.Cache, owner, repo)
-	if err := gitx.EnsureClone(args[1], dest); err != nil {
+	if err := gitx.EnsureClone(url, dest); err != nil {
 		return err
 	}
 
@@ -30,18 +24,18 @@ func Repo(p Paths, args []string) error {
 		return err
 	}
 	if _, _, err := marketplace.Read(dest); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		render.Warn(err.Error())
 	}
 
 	cfg, err := repos.Load(p.Repos)
 	if err != nil {
 		return err
 	}
-	cfg.Upsert(repos.Entry{Name: owner + "/" + repo, URL: args[1], SHA: sha})
+	cfg.Upsert(repos.Entry{Name: owner + "/" + repo, URL: url, SHA: sha})
 	if err := repos.Save(p.Repos, cfg); err != nil {
 		return err
 	}
 
-	fmt.Printf("added %s/%s @ %s\n", owner, repo, sha[:12])
+	render.Done("repo added", "name", owner+"/"+repo, "sha", sha[:12])
 	return nil
 }
