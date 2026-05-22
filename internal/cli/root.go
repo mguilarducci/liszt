@@ -16,7 +16,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:           "liszt",
-	Short:         "liszt — agent-agnostic plugin package manager",
+	Short:         "Liszt",
 	Version:       version.Full(),
 	SilenceUsage:  true,
 	SilenceErrors: true,
