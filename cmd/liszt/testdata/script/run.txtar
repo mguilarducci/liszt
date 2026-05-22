@@ -24,6 +24,10 @@ exec liszt run off
 exec liszt run only --config alt/liszt.toml
 stdout 'from-alt'
 
+# extra args reach the command as bash positional params
+exec liszt run echoarg WORLD
+stdout 'got:WORLD'
+
 -- .liszt/liszt.toml --
 [tasks.pre-commit]
 run = ["echo hello-pre-commit"]
@@ -35,6 +39,9 @@ fail_hint = "fix the thing"
 [tasks.off]
 run = ["echo should-not-run"]
 enabled = false
+
+[tasks.echoarg]
+run = ["printf 'got:%s' \"$1\""]
 
 -- alt/liszt.toml --
 [tasks.only]

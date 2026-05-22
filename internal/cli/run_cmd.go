@@ -12,9 +12,9 @@ import (
 var runConfigPath string
 
 var runCmd = &cobra.Command{
-	Use:   "run <name>",
+	Use:   "run <name> [args...]",
 	Short: "Run a named task from .liszt/liszt.toml",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		cfg, err := runner.Load(runConfigPath)
 		if err != nil {
@@ -24,7 +24,7 @@ var runCmd = &cobra.Command{
 		if !ok {
 			return fmt.Errorf("no [tasks.%s] target in %s", args[0], runConfigPath)
 		}
-		os.Exit(target.Run(args[0], os.Stdout, os.Stderr))
+		os.Exit(target.Run(args[0], args[1:], os.Stdout, os.Stderr))
 		return nil // coverage: unreachable, os.Exit terminates the process
 	},
 }

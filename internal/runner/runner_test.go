@@ -84,7 +84,7 @@ func TestRun_Disabled(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"echo nope"}, Enabled: boolPtr(false)}
-	if code := tgt.Run("x", &out, &errOut); code != 0 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 0 {
 		t.Errorf("disabled target should return 0, got %d", code)
 	}
 	if out.Len() != 0 {
@@ -96,7 +96,7 @@ func TestRun_EmptyRun(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: nil}
-	if code := tgt.Run("x", &out, &errOut); code != 1 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 1 {
 		t.Errorf("empty run should return 1, got %d", code)
 	}
 	if !strings.Contains(errOut.String(), "empty run") {
@@ -108,7 +108,7 @@ func TestRun_AllPass(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"echo first", "echo second"}}
-	if code := tgt.Run("pre-commit", &out, &errOut); code != 0 {
+	if code := tgt.Run("pre-commit", nil, &out, &errOut); code != 0 {
 		t.Errorf("all-pass should return 0, got %d", code)
 	}
 	s := out.String()
@@ -120,6 +120,19 @@ func TestRun_AllPass(t *testing.T) {
 	}
 }
 
+func TestRun_ForwardsArgsOnFailurePath(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	// $1 is forwarded into the failing command itself: exit "$1" -> exit 7.
+	tgt := Target{Commands: []string{`exit "$1"`}}
+	if code := tgt.Run("x", []string{"7"}, &out, &errOut); code != 7 {
+		t.Errorf("expected $1 forwarded into failing command (exit 7), got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "FAILED:") {
+		t.Errorf("expected FAILED line on failure path, got %q", errOut.String())
+	}
+}
+
 func TestRun_RetainsFirstFailure(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
@@ -128,7 +141,7 @@ func TestRun_RetainsFirstFailure(t *testing.T) {
 		Commands: []string{"exit 3", "echo ran-anyway", "exit 4"},
 		FailHint: "fix me",
 	}
-	code := tgt.Run("x", &out, &errOut)
+	code := tgt.Run("x", nil, &out, &errOut)
 	if code != 3 {
 		t.Errorf("expected retained first failure exit 3, got %d", code)
 	}
@@ -148,7 +161,7 @@ func TestRun_NoHintWhenUnset(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"exit 1"}}
-	tgt.Run("x", &out, &errOut)
+	tgt.Run("x", nil, &out, &errOut)
 	if strings.Contains(errOut.String(), "hint:") {
 		t.Errorf("no fail_hint set, should not print hint line: %q", errOut.String())
 	}
@@ -159,7 +172,7 @@ func TestRun_CommandNotFound(t *testing.T) {
 	var out, errOut bytes.Buffer
 	// bash -c of a non-existent binary: bash returns 127 for an unknown command.
 	tgt := Target{Commands: []string{"this-binary-does-not-exist-xyz"}}
-	if code := tgt.Run("x", &out, &errOut); code != 127 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 127 {
 		t.Errorf("command-not-found should map to bash exit 127, got %d", code)
 	}
 }
@@ -198,5 +211,33 @@ func TestFailureLine_StartError(t *testing.T) {
 	line := failureLine("foo", 1, errors.New("boom"))
 	if !strings.Contains(line, "could not start: boom") {
 		t.Errorf("expected start-failure form, got %q", line)
+	}
+}
+
+func TestRun_ForwardsArgAsDollarOne(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	tgt := Target{Commands: []string{`printf '%s' "$1"`}}
+	if code := tgt.Run("x", []string{"hello"}, &out, &errOut); code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	if !strings.Contains(out.String(), "hello") {
+		t.Errorf("expected $1 forwarded as %q, got %q", "hello", out.String())
+	}
+}
+
+func TestRun_ForwardsAllArgsToEveryCommand(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	tgt := Target{Commands: []string{`printf 'all:%s\n' "$@"`, `printf 'second:%s\n' "$1"`}}
+	if code := tgt.Run("x", []string{"a", "b"}, &out, &errOut); code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	s := out.String()
+	if !strings.Contains(s, "all:a") || !strings.Contains(s, "b") {
+		t.Errorf("expected $@ to expand all args, got %q", s)
+	}
+	if !strings.Contains(s, "second:a") {
+		t.Errorf("expected $1 available in the second command, got %q", s)
 	}
 }
