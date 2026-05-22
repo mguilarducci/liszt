@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
-	"github.com/mguilarducci/liszt/internal/intro"
 	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/version"
 )
@@ -22,28 +21,20 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		// Bare `liszt` invocation: play the intro animation (no-op on
-		// non-TTY) and then print the same help fang would render.
-		_ = intro.Play(os.Stderr, true)
 		return cmd.Help()
 	},
 }
 
-var (
-	noColor bool
-	verbose bool
-)
+var noColor bool
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable color output")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "show technical detail")
 	rootCmd.PersistentPreRun = func(_ *cobra.Command, _ []string) {
 		if noColor {
 			// Setenv only fails on platforms without env support; failure
 			// here means colors stay on, which is harmless.
 			_ = os.Setenv("NO_COLOR", "1")
 		}
-		render.SetVerbose(verbose)
 	}
 }
 
@@ -59,11 +50,10 @@ func Execute(ctx context.Context) error {
 }
 
 // gleamColorScheme maps the Gleam palette onto fang's ColorScheme so help,
-// version, and error output share the same look-and-feel as render.Step,
-// render.Bar, etc. The function signature matches fang.ColorSchemeFunc and
-// is invoked with a lipgloss.LightDarkFunc that resolves to the terminal's
-// preferred variant; we ignore the light/dark argument because the Gleam
-// palette is dark-tuned (see spec §15 on light-mode being out of scope).
+// version, and error output share the Gleam look-and-feel. The function
+// signature matches fang.ColorSchemeFunc and is invoked with a
+// lipgloss.LightDarkFunc that resolves to the terminal's preferred variant;
+// we ignore the light/dark argument because the Gleam palette is dark-tuned.
 func gleamColorScheme(_ lipgloss.LightDarkFunc) fang.ColorScheme {
 	return fang.ColorScheme{
 		Base:           color.Color(nil),
