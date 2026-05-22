@@ -120,6 +120,19 @@ func TestRun_AllPass(t *testing.T) {
 	}
 }
 
+func TestRun_ForwardsArgsOnFailurePath(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	// $1 is forwarded into the failing command itself: exit "$1" -> exit 7.
+	tgt := Target{Commands: []string{`exit "$1"`}}
+	if code := tgt.Run("x", []string{"7"}, &out, &errOut); code != 7 {
+		t.Errorf("expected $1 forwarded into failing command (exit 7), got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "FAILED:") {
+		t.Errorf("expected FAILED line on failure path, got %q", errOut.String())
+	}
+}
+
 func TestRun_RetainsFirstFailure(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
