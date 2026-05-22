@@ -11,7 +11,7 @@ vet:
 	go vet ./cmd/liszt ./internal/...
 
 test:
-	go test ./... -race -covermode=atomic -coverprofile=$(COVER)
+	go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=$(COVER)
 
 lint:
 	golangci-lint run
