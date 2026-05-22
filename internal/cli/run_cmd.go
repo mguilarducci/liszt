@@ -14,7 +14,7 @@ var runConfigPath string
 var runCmd = &cobra.Command{
 	Use:   "run <name>",
 	Short: "Run a named task from .liszt/liszt.toml",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		cfg, err := runner.Load(runConfigPath)
 		if err != nil {
