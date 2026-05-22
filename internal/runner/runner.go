@@ -2,8 +2,11 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -38,4 +41,57 @@ func Load(path string) (*Config, error) {
 func (c *Config) Target(name string) (Target, bool) {
 	t, ok := c.Run[name]
 	return t, ok
+}
+
+func (t Target) isEnabled() bool {
+	return t.Enabled == nil || *t.Enabled
+}
+
+// Run executes the target's commands via `bash -c`, streaming each command's
+// stdout/stderr to the provided writers. All commands run even if an earlier
+// one fails; the exit code of the first failing command is retained and
+// returned (0 = all passed). A disabled target returns 0 without output; a
+// target with no commands returns 1.
+func (t Target) Run(name string, stdout, stderr io.Writer) int {
+	if !t.isEnabled() {
+		return 0
+	}
+	if len(t.Cmd) == 0 {
+		fmt.Fprintf(stderr, "error: [run.%s] has empty cmd\n", name)
+		return 1
+	}
+
+	fmt.Fprintf(stdout, "== run %s ==\n", name)
+
+	failCode := 0
+	failCmd := ""
+	for _, c := range t.Cmd {
+		cmd := exec.Command("bash", "-c", c)
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		if err := cmd.Run(); err != nil && failCode == 0 {
+			failCode = exitCode(err)
+			failCmd = c
+		}
+	}
+
+	if failCode != 0 {
+		fmt.Fprintf(stderr, "FAILED: %s (exit %d)\n", failCmd, failCode)
+		if t.FailHint != "" {
+			fmt.Fprintf(stderr, "hint: %s\n", t.FailHint)
+		}
+	}
+	return failCode
+}
+
+// exitCode extracts the process exit code from a command error. A non-exit
+// error (e.g. bash not found) or a signal kill maps to 1.
+func exitCode(err error) int {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		if code := ee.ExitCode(); code > 0 {
+			return code
+		}
+	}
+	return 1
 }
