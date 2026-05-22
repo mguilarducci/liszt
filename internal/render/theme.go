@@ -1,7 +1,5 @@
-// Package render is the styled CLI output layer for the liszt binary. All
-// verbs print user-facing output through this package so the look-and-feel
-// stays consistent across the CLI surface. See the design spec at
-// docs/superpowers/specs/2026-05-18-cli-color-render-design.md.
+// Package render exposes the Gleam color palette used to style the liszt
+// CLI's help, version, and error output via charmbracelet/fang.
 package render
 
 import (
@@ -20,33 +18,8 @@ var (
 	cDim        color.Color = lipgloss.Color("#c4c4c4")
 )
 
-var (
-	styH1   = lipgloss.NewStyle().Bold(true).Underline(true)
-	styH2   = lipgloss.NewStyle().Foreground(cPinkDeep).Bold(true)
-	styH3   = lipgloss.NewStyle().Foreground(cDim).Italic(true)
-	styDim  = lipgloss.NewStyle().Foreground(cDim)
-	styPink = lipgloss.NewStyle().Foreground(cPinkBright).Bold(true)
-
-	styDoneBar  = lipgloss.NewStyle().Foreground(cDone)
-	styWarnBar  = lipgloss.NewStyle().Foreground(cWarn)
-	styErrorBar = lipgloss.NewStyle().Foreground(cError)
-	styStepBar  = lipgloss.NewStyle().Foreground(cInfo)
-
-	styDoneLbl  = lipgloss.NewStyle().Foreground(cDone).Bold(true)
-	styWarnLbl  = lipgloss.NewStyle().Foreground(cWarn).Bold(true)
-	styErrorLbl = lipgloss.NewStyle().Foreground(cError).Bold(true)
-	styStepLbl  = lipgloss.NewStyle().Foreground(cInfo).Bold(true)
-)
-
-const (
-	lblDone = "done "
-	lblWarn = "warn "
-	lblStep = "step "
-)
-
-// Palette exposes the Gleam palette colors used by the render package. Other
-// packages (notably the CLI's fang integration) use these to keep fang's
-// styled help/version/error output aligned with the in-app message colors.
+// Palette exposes the Gleam palette colors. The CLI's fang integration uses
+// these to style help/version/error output.
 var Palette = struct {
 	PinkDeep   color.Color
 	PinkBright color.Color

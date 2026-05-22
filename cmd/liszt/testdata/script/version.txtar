@@ -2,3 +2,7 @@
 env NO_COLOR=1
 exec liszt version
 stdout 'liszt 0\.0\.0-dev'
+
+# --version flag reports the same build identifier (via fang)
+exec liszt --version
+stdout 'liszt version 0\.0\.0-dev'

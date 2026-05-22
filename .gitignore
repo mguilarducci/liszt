@@ -5,3 +5,5 @@
 /repos.toml
 /liszt.toml
 /liszt.lock
+/coverage.out
+.DS_Store

@@ -1,6 +1,6 @@
-# --help prints program name and lists surviving verbs
+# bare `liszt` (no subcommand) prints help and lists surviving verbs
 env NO_COLOR=1
-exec liszt --help
+exec liszt
 stdout 'liszt'
 stdout 'run'
 stdout 'version'
