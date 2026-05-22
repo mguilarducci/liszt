@@ -12,7 +12,7 @@ import (
 var runConfigPath string
 
 var runCmd = &cobra.Command{
-	Use:   "run <name>",
+	Use:   "run <name> [args...]",
 	Short: "Run a named task from .liszt/liszt.toml",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
