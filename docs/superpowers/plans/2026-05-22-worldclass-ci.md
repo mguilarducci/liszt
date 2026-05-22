@@ -4,9 +4,9 @@
 
 **Goal:** Add a security-hardened GitHub Actions CI (lint, 3-OS test matrix, 90% coverage gate, build) plus CodeQL scanning and Dependabot to the `liszt` Go CLI.
 
-**Architecture:** Two workflows under `.github/workflows/` (`ci.yml` for validation, `codeql.yml` for security — separated by permission boundary), `.github/dependabot.yml` for gomod + github-actions updates, and two repo-root config files (`.golangci.yml`, `.testcoverage.yml`). Makefile gains `test`/`lint`/`cover` so local == CI. Every third-party action is pinned to a full commit SHA.
+**Architecture:** Two workflows under `.github/workflows/` (`ci.yml` for validation, `codeql.yml` for security — separated by permission boundary), `.github/dependabot.yml` for gomod + github-actions updates, and two repo-root config files (`.golangci.yml`, `codecov.yml`). Coverage is gated by Codecov (the de-facto community standard) — the `test` job uploads the profile and Codecov posts a `codecov/project` status check failing below 90%. Makefile gains `test`/`lint`/`cover` so local == CI. Every third-party action is pinned to a full commit SHA.
 
-**Tech Stack:** GitHub Actions; Go 1.26.3 (from `go.mod`); golangci-lint v2.12.2; vladopajic/go-test-coverage v2.18.8; github/codeql-action v4; actionlint v1.7.12 (local YAML validation).
+**Tech Stack:** GitHub Actions; Go 1.26.3 (from `go.mod`); golangci-lint v2.12.2; Codecov (codecov-action v6.0.1, tokenless via OIDC — repo is public); github/codeql-action v4.
 
 ---
 
@@ -17,21 +17,18 @@ Use these EXACT `uses:` strings verbatim. The `# vX.Y.Z` comment is required (De
 ```
 actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd          # v6.0.2
 actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c          # v6.4.0
-actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a   # v7.0.1
-actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
 golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
+codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354     # v6.0.1
 github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa    # v4
 github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
-vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
 ```
 
-## Local tooling (pinned)
+## Local tooling
 
-```
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-go install github.com/vladopajic/go-test-coverage/v2@v2.18.8
-go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-```
+CI tools (golangci-lint, Codecov, CodeQL) run **in GitHub Actions** — do NOT
+`go install` them on the dev machine. Local coverage uses the Go toolchain only:
+`make cover` runs `go test ... -coverpkg=./...` then `go tool cover -func`.
+Workflow YAML is validated by pushing to CI (no local actionlint install).
 
 ---
 
@@ -89,12 +86,9 @@ git commit -m "build: add test, lint, and cover make targets"
 **Files:**
 - Create: `.golangci.yml`
 
-- [ ] **Step 1: Install golangci-lint locally**
+> Note: golangci-lint is NOT installed locally. The `lint` CI job runs it. Steps 3–4 below assume it is already present in the dev environment; if it is not, skip them and let CI run the linter on push.
 
-Run: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`
-Expected: binary installed to `$(go env GOPATH)/bin/golangci-lint`. Confirm with `golangci-lint version` → reports `2.12.2`.
-
-- [ ] **Step 2: Create `.golangci.yml`**
+- [ ] **Step 1: Create `.golangci.yml`**
 
 ```yaml
 version: "2"
@@ -138,55 +132,57 @@ git commit -m "ci: add golangci-lint v2 config with gofumpt/gci formatters"
 
 ---
 
-## Task 3: Coverage threshold config + gate
+## Task 3: Codecov coverage gate config
 
 **Files:**
-- Create: `.testcoverage.yml`
+- Create: `codecov.yml`
 
-- [ ] **Step 1: Install go-test-coverage locally**
+Coverage is gated by Codecov (community standard), not a third-party action.
+The `test` CI job uploads `cover.out`; Codecov posts a `codecov/project` status
+check that fails when total coverage falls below 90%.
 
-Run: `go install github.com/vladopajic/go-test-coverage/v2@v2.18.8`
-Expected: `go-test-coverage` on PATH.
-
-- [ ] **Step 2: Create `.testcoverage.yml`**
+- [ ] **Step 1: Create `codecov.yml`** at the repo root
 
 ```yaml
-profile: cover.out
-
-threshold:
-  total: 90
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 0%
+    patch: false
 ```
 
-- [ ] **Step 3: Generate a fresh coverage profile**
+`patch: false` disables per-PR patch-coverage gating — only the project total is
+gated, per spec.
 
-Run: `make test`
-Expected: `cover.out` written, tests PASS.
+- [ ] **Step 2: Sanity-check coverage locally (Go toolchain only — no installs)**
 
-- [ ] **Step 4: Run the coverage gate**
+Run: `make cover`
+Expected: prints per-function coverage ending in `total: (statements) 96.6%`,
+comfortably above the 90 floor. (`-coverpkg=./...` is what makes this number
+correct — see notes.)
 
-Run: `go-test-coverage --config=.testcoverage.yml`
-Expected: PASS — prints the total coverage and exits 0 because the suite is well above 90%. (`make cover` runs steps 3–4 together.)
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```
-git add .testcoverage.yml
-git commit -m "ci: add coverage threshold config (total 90%)"
+git add codecov.yml
+git commit -m "ci: add Codecov project coverage gate (90%)"
 ```
 
 ---
 
-## Task 4: CI workflow (lint, test matrix, coverage gate, build)
+## Task 4: CI workflow (lint, test matrix + Codecov upload, build)
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Install actionlint locally**
+- [ ] **Step 1: Create `.github/workflows/ci.yml`**
 
-Run: `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`
-Expected: `actionlint` on PATH.
-
-- [ ] **Step 2: Create `.github/workflows/ci.yml`**
+The `test` job uploads coverage to Codecov from the ubuntu runner using OIDC
+(`use_oidc: true`), which needs `id-token: write` on that job. No artifact
+hand-off and no separate gate job — Codecov enforces the 90% threshold via the
+`codecov/project` status check (configured in `codecov.yml`).
 
 ```yaml
 name: CI
@@ -219,6 +215,9 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -230,31 +229,13 @@ jobs:
           go-version-file: go.mod
       - name: test
         run: go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=cover.out
-      - name: upload coverage
+      - name: upload coverage to codecov
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
-          name: coverage
-          path: cover.out
-          if-no-files-found: error
-
-  coverage:
-    name: coverage gate
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: go.mod
-      - name: download coverage
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage
-      - name: check coverage
-        uses: vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
-        with:
-          config: .testcoverage.yml
+          use_oidc: true
+          files: cover.out
+          fail_ci_if_error: true
 
   build:
     name: build (${{ matrix.os }})
@@ -272,16 +253,18 @@ jobs:
         run: go build ./cmd/liszt
 ```
 
-- [ ] **Step 3: Validate the workflow YAML**
+- [ ] **Step 2: Verify the file structure**
 
-Run: `actionlint .github/workflows/ci.yml`
-Expected: no output, exit 0. (actionlint also shellchecks the `run:` scripts.)
+Use the Read tool on `.github/workflows/ci.yml`. Confirm: three jobs (`lint`,
+`test`, `build`); the `test` job has `permissions: id-token: write`; the codecov
+step is gated by `if: matrix.os == 'ubuntu-latest'`. YAML is validated by CI on
+push (Task 7) — no local actionlint install.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```
 git add .github/workflows/ci.yml
-git commit -m "ci: add CI workflow with lint, 3-OS test matrix, coverage gate, build"
+git commit -m "ci: add CI workflow with lint, 3-OS test matrix, Codecov upload, build"
 ```
 
 ---
@@ -327,10 +310,11 @@ jobs:
         uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
 ```
 
-- [ ] **Step 2: Validate the workflow YAML**
+- [ ] **Step 2: Verify the file structure**
 
-Run: `actionlint .github/workflows/codeql.yml`
-Expected: no output, exit 0.
+Use the Read tool on `.github/workflows/codeql.yml`. Confirm the `analyze` job
+has `security-events: write` and both `init` and `analyze` use the codeql-action
+v4 SHA. YAML is validated by CI on push (Task 7) — no local actionlint install.
 
 - [ ] **Step 3: Commit**
 
@@ -387,26 +371,36 @@ git commit -m "ci: add Dependabot for gomod and github-actions"
 
 ## Task 7: Trigger and verify on a branch
 
-**Files:** none (verification only).
+**Files:** none (verification + external setup).
 
-- [ ] **Step 1: Push the branch and open a PR**
+- [ ] **Step 1: Enable Codecov for the repo (one-time, user action)**
 
-Push the feature branch and open a PR against `main` so the workflows run. (Confirm the branch name and remote with the user before pushing.)
+The repo (`mguilarducci/liszt`) is public, so coverage upload is tokenless via
+OIDC — but for the `codecov/project` status check to post on PRs, the Codecov
+GitHub App must be installed and the repo activated at https://codecov.io.
+Confirm this is done before relying on the gate.
 
-- [ ] **Step 2: Verify CI checks**
+- [ ] **Step 2: Push the branch and open a PR**
+
+Push the feature branch and open a PR against `main` so the workflows run.
+(Confirm the branch name and remote with the user before pushing.)
+
+- [ ] **Step 3: Verify CI checks**
 
 On the PR, confirm every check is green:
 - `lint`
 - `test (ubuntu-latest)`, `test (macos-latest)`, `test (windows-latest)`
-- `coverage gate`
 - `build (ubuntu-latest)`, `build (macos-latest)`, `build (windows-latest)`
 - CodeQL `analyze (go)`
+- `codecov/project` (posted by Codecov; fails if total < 90%)
 
-Expected: all PASS. If `coverage gate` fails, the suite dropped below 90% — investigate the uncovered lines, do not lower the threshold.
+Expected: all PASS. If `codecov/project` is red, the suite dropped below 90% —
+investigate the uncovered lines, do not lower the threshold.
 
-- [ ] **Step 3: Verify Dependabot registered**
+- [ ] **Step 4: Verify Dependabot registered**
 
-In the repo: Insights → Dependency graph → Dependabot. Expected: both `gomod` and `github-actions` ecosystems listed with no config errors.
+In the repo: Insights → Dependency graph → Dependabot. Expected: both `gomod`
+and `github-actions` ecosystems listed with no config errors.
 
 ---
 
