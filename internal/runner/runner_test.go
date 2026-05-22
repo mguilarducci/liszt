@@ -84,7 +84,7 @@ func TestRun_Disabled(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"echo nope"}, Enabled: boolPtr(false)}
-	if code := tgt.Run("x", &out, &errOut); code != 0 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 0 {
 		t.Errorf("disabled target should return 0, got %d", code)
 	}
 	if out.Len() != 0 {
@@ -96,7 +96,7 @@ func TestRun_EmptyRun(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: nil}
-	if code := tgt.Run("x", &out, &errOut); code != 1 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 1 {
 		t.Errorf("empty run should return 1, got %d", code)
 	}
 	if !strings.Contains(errOut.String(), "empty run") {
@@ -108,7 +108,7 @@ func TestRun_AllPass(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"echo first", "echo second"}}
-	if code := tgt.Run("pre-commit", &out, &errOut); code != 0 {
+	if code := tgt.Run("pre-commit", nil, &out, &errOut); code != 0 {
 		t.Errorf("all-pass should return 0, got %d", code)
 	}
 	s := out.String()
@@ -128,7 +128,7 @@ func TestRun_RetainsFirstFailure(t *testing.T) {
 		Commands: []string{"exit 3", "echo ran-anyway", "exit 4"},
 		FailHint: "fix me",
 	}
-	code := tgt.Run("x", &out, &errOut)
+	code := tgt.Run("x", nil, &out, &errOut)
 	if code != 3 {
 		t.Errorf("expected retained first failure exit 3, got %d", code)
 	}
@@ -148,7 +148,7 @@ func TestRun_NoHintWhenUnset(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	tgt := Target{Commands: []string{"exit 1"}}
-	tgt.Run("x", &out, &errOut)
+	tgt.Run("x", nil, &out, &errOut)
 	if strings.Contains(errOut.String(), "hint:") {
 		t.Errorf("no fail_hint set, should not print hint line: %q", errOut.String())
 	}
@@ -159,7 +159,7 @@ func TestRun_CommandNotFound(t *testing.T) {
 	var out, errOut bytes.Buffer
 	// bash -c of a non-existent binary: bash returns 127 for an unknown command.
 	tgt := Target{Commands: []string{"this-binary-does-not-exist-xyz"}}
-	if code := tgt.Run("x", &out, &errOut); code != 127 {
+	if code := tgt.Run("x", nil, &out, &errOut); code != 127 {
 		t.Errorf("command-not-found should map to bash exit 127, got %d", code)
 	}
 }

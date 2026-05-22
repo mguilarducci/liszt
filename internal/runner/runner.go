@@ -54,7 +54,7 @@ func (t Target) isEnabled() bool {
 // reported distinctly so its failure is not misattributed to the command's own
 // exit status. A disabled target returns 0 without output; a target with no
 // commands returns 1.
-func (t Target) Run(name string, stdout, stderr io.Writer) int {
+func (t Target) Run(name string, args []string, stdout, stderr io.Writer) int {
 	if !t.isEnabled() {
 		return 0
 	}

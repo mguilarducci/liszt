@@ -24,7 +24,7 @@ var runCmd = &cobra.Command{
 		if !ok {
 			return fmt.Errorf("no [tasks.%s] target in %s", args[0], runConfigPath)
 		}
-		os.Exit(target.Run(args[0], os.Stdout, os.Stderr))
+		os.Exit(target.Run(args[0], args[1:], os.Stdout, os.Stderr))
 		return nil // coverage: unreachable, os.Exit terminates the process
 	},
 }
