@@ -49,9 +49,11 @@ func (t Target) isEnabled() bool {
 
 // Run executes the target's commands via `bash -c`, streaming each command's
 // stdout/stderr to the provided writers. All commands run even if an earlier
-// one fails; the exit code of the first failing command is retained and
-// returned (0 = all passed). A disabled target returns 0 without output; a
-// target with no commands returns 1.
+// one fails; the first failing command is retained and its exit code returned
+// (0 = all passed). A command that never started (e.g. bash missing) is
+// reported distinctly so its failure is not misattributed to the command's own
+// exit status. A disabled target returns 0 without output; a target with no
+// commands returns 1.
 func (t Target) Run(name string, stdout, stderr io.Writer) int {
 	if !t.isEnabled() {
 		return 0
@@ -65,6 +67,7 @@ func (t Target) Run(name string, stdout, stderr io.Writer) int {
 
 	failCode := 0
 	failCmd := ""
+	var failErr error
 	for _, c := range t.Cmd {
 		cmd := exec.Command("bash", "-c", c)
 		cmd.Stdout = stdout
@@ -72,16 +75,29 @@ func (t Target) Run(name string, stdout, stderr io.Writer) int {
 		if err := cmd.Run(); err != nil && failCode == 0 {
 			failCode = exitCode(err)
 			failCmd = c
+			failErr = err
 		}
 	}
 
 	if failCode != 0 {
-		fmt.Fprintf(stderr, "FAILED: %s (exit %d)\n", failCmd, failCode)
+		fmt.Fprint(stderr, failureLine(failCmd, failCode, failErr))
 		if t.FailHint != "" {
 			fmt.Fprintf(stderr, "hint: %s\n", t.FailHint)
 		}
 	}
 	return failCode
+}
+
+// failureLine formats the FAILED line. A command that ran and exited non-zero
+// reports its exit code; a command that never started (non-ExitError, e.g. bash
+// not found) reports the underlying error so the cause is not misattributed to
+// the command's own exit status.
+func failureLine(cmd string, code int, err error) string {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return fmt.Sprintf("FAILED: %s (exit %d)\n", cmd, code)
+	}
+	return fmt.Sprintf("FAILED: %s (could not start: %v)\n", cmd, err)
 }
 
 // exitCode extracts the process exit code from a command error. A non-exit

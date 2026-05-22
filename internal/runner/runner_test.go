@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -180,5 +181,22 @@ func TestExitCode_NonExitError(t *testing.T) {
 	t.Parallel()
 	if got := exitCode(errors.New("not an exit error")); got != 1 {
 		t.Errorf("non-ExitError should map to 1, got %d", got)
+	}
+}
+
+func TestFailureLine_ExitError(t *testing.T) {
+	t.Parallel()
+	err := exec.Command("bash", "-c", "exit 2").Run()
+	line := failureLine("exit 2", 2, err)
+	if !strings.Contains(line, "FAILED: exit 2 (exit 2)") {
+		t.Errorf("expected exit-code form, got %q", line)
+	}
+}
+
+func TestFailureLine_StartError(t *testing.T) {
+	t.Parallel()
+	line := failureLine("foo", 1, errors.New("boom"))
+	if !strings.Contains(line, "could not start: boom") {
+		t.Errorf("expected start-failure form, got %q", line)
 	}
 }
