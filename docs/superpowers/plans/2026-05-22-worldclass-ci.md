@@ -58,7 +58,7 @@ vet:
 	go vet ./cmd/liszt ./internal/...
 
 test:
-	go test ./... -race -covermode=atomic -coverprofile=$(COVER)
+	go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=$(COVER)
 
 lint:
 	golangci-lint run
@@ -229,7 +229,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: test
-        run: go test ./... -race -covermode=atomic -coverprofile=cover.out
+        run: go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=cover.out
       - name: upload coverage
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -416,3 +416,4 @@ In the repo: Insights → Dependency graph → Dependabot. Expected: both `gomod
 - **rtk:** run all commands through `rtk` (the shell hook rewrites transparently); do not invoke absolute binary paths.
 - **No compound commands:** one command per shell invocation — `git add` and `git commit` are separate calls.
 - **Coverage is a floor, not a target:** the gate is 90; the project culture is ~100%. Never lower the gate to make a red build green.
+- **`-coverpkg=./...` is required:** the testscript harness in `cmd/liszt` exercises the `internal/*` packages in-process. Without `-coverpkg`, that coverage is not attributed (e.g. `internal/cli` reads as ~56%). With it, the merged profile reports ~96.6% (only `cmd/liszt/main.go`, the entry point, is uncovered). Keep `-coverpkg=./...` in both the Makefile `test` target and the CI `test` job.

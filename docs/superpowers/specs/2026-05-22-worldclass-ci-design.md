@@ -81,11 +81,17 @@ strategy:
 ```
 1. checkout
 2. setup-go (`go-version-file: go.mod`, cache on)
-3. `go test ./... -race -covermode=atomic -coverprofile=cover.out`
+3. `go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=cover.out`
 4. **On ubuntu only:** upload `cover.out` as an artifact (`upload-artifact`)
 
 Race detector on across all platforms. `fail-fast: false` so one OS failing
 still reports the others.
+
+`-coverpkg=./...` is mandatory: the `cmd/liszt` testscript harness drives the
+`internal/*` packages in-process, so without it their coverage is unattributed
+(`internal/cli` reads ~56%). With it the merged profile is ~96.6% — only
+`cmd/liszt/main.go` (entry point, justified inline) is uncovered — clearing the
+90 floor.
 
 ### Job: `coverage` (ubuntu-latest, `needs: test`)
 1. checkout
