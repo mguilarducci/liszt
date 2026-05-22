@@ -69,7 +69,7 @@ func (t Target) Run(name string, args []string, stdout, stderr io.Writer) int {
 	failCmd := ""
 	var failErr error
 	for _, c := range t.Commands {
-		cmd := exec.Command("bash", "-c", c)
+		cmd := exec.Command("bash", append([]string{"-c", c, "bash"}, args...)...)
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 		if err := cmd.Run(); err != nil && failCode == 0 {

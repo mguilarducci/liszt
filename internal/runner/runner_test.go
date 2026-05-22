@@ -200,3 +200,15 @@ func TestFailureLine_StartError(t *testing.T) {
 		t.Errorf("expected start-failure form, got %q", line)
 	}
 }
+
+func TestRun_ForwardsArgAsDollarOne(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	tgt := Target{Commands: []string{`printf '%s' "$1"`}}
+	if code := tgt.Run("x", []string{"hello"}, &out, &errOut); code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	if !strings.Contains(out.String(), "hello") {
+		t.Errorf("expected $1 forwarded as %q, got %q", "hello", out.String())
+	}
+}
