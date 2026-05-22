@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/hexops/autogold/v2"
-
 	"github.com/mguilarducci/liszt/internal/version"
 )
 

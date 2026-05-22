@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/mguilarducci/liszt/internal/runner"
+	"github.com/spf13/cobra"
 )
 
 var runConfigPath string

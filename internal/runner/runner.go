@@ -59,11 +59,11 @@ func (t Target) Run(name string, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(t.Commands) == 0 {
-		fmt.Fprintf(stderr, "error: [tasks.%s] has empty run\n", name)
+		_, _ = fmt.Fprintf(stderr, "error: [tasks.%s] has empty run\n", name)
 		return 1
 	}
 
-	fmt.Fprintf(stdout, "== run %s ==\n", name)
+	_, _ = fmt.Fprintf(stdout, "== run %s ==\n", name)
 
 	failCode := 0
 	failCmd := ""
@@ -80,9 +80,9 @@ func (t Target) Run(name string, args []string, stdout, stderr io.Writer) int {
 	}
 
 	if failCode != 0 {
-		fmt.Fprint(stderr, failureLine(failCmd, failCode, failErr))
+		_, _ = fmt.Fprint(stderr, failureLine(failCmd, failCode, failErr))
 		if t.FailHint != "" {
-			fmt.Fprintf(stderr, "hint: %s\n", t.FailHint)
+			_, _ = fmt.Fprintf(stderr, "hint: %s\n", t.FailHint)
 		}
 	}
 	return failCode
