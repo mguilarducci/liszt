@@ -235,7 +235,8 @@ jobs:
         with:
           use_oidc: true
           files: cover.out
-          fail_ci_if_error: true
+          # gate is the codecov/project status check, not this upload step
+          fail_ci_if_error: false
 
   build:
     name: build (${{ matrix.os }})

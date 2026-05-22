@@ -84,7 +84,7 @@ The `test` job declares `permissions: { contents: read, id-token: write }` for O
 2. setup-go (`go-version-file: go.mod`, cache on)
 3. `go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=cover.out`
 4. **On ubuntu only:** `codecov/codecov-action` with `use_oidc: true`,
-   `files: cover.out`, `fail_ci_if_error: true`
+   `files: cover.out`, `fail_ci_if_error: false`
 
 Race detector on across all platforms. `fail-fast: false` so one OS failing
 still reports the others.
@@ -99,8 +99,10 @@ still reports the others.
 No separate gate job and no artifact hand-off. Codecov ingests the uploaded
 profile and posts a `codecov/project` status check that fails when total
 coverage drops below 90% (configured in `codecov.yml`). To block merges, add
-`codecov/project` as a required status check in branch protection. `fail_ci_if_error: true`
-makes the upload step itself fail loudly if the upload errors.
+`codecov/project` as a required status check in branch protection. The upload
+step uses `fail_ci_if_error: false` so a Codecov outage (or a not-yet-activated
+repo) does not redden the `test` job — coverage enforcement lives entirely in
+the `codecov/project` check, keeping concerns separate.
 
 ### Job: `build` (matrix, 3 OS)
 1. checkout
@@ -175,7 +177,7 @@ Add targets so local == CI:
 
 - **Windows line endings / paths:** `go test` matrix surfaces these; no extra config.
 - **Annotated-tag SHA trap:** pin commit SHA (`tag^{}`), not tag-object SHA. Documented above.
-- **Coverage upload failure:** `fail_ci_if_error: true` fails the step rather than silently passing with no data.
+- **Coverage upload failure:** `fail_ci_if_error: false` — a Codecov outage or not-yet-activated repo must not break the `test` job; the `codecov/project` check is the gate.
 - **Test failure skips upload:** the codecov step runs after `go test`; if tests fail the job stops before upload (no false green).
 - **Cron noise:** CodeQL weekly schedule only; PR/push cover the hot path.
 
