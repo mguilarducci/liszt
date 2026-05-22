@@ -153,15 +153,13 @@ func TestRun_NoHintWhenUnset(t *testing.T) {
 	}
 }
 
-func TestRun_SpawnFailureMapsTo1(t *testing.T) {
+func TestRun_CommandNotFound(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
-	// bash -c of a non-existent binary: bash exits 127, which is a normal
-	// ExitError; to hit the non-ExitError branch we rely on bash returning
-	// non-zero. Assert a non-zero code is retained.
+	// bash -c of a non-existent binary: bash returns 127 for an unknown command.
 	tgt := Target{Cmd: []string{"this-binary-does-not-exist-xyz"}}
-	if code := tgt.Run("x", &out, &errOut); code == 0 {
-		t.Errorf("expected non-zero exit for failing command, got 0")
+	if code := tgt.Run("x", &out, &errOut); code != 127 {
+		t.Errorf("command-not-found should map to bash exit 127, got %d", code)
 	}
 }
 

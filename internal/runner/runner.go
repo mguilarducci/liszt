@@ -89,6 +89,7 @@ func (t Target) Run(name string, stdout, stderr io.Writer) int {
 func exitCode(err error) int {
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
+		// code > 0 folds signal kills (ExitCode() == -1) into the 1 fallback.
 		if code := ee.ExitCode(); code > 0 {
 			return code
 		}
