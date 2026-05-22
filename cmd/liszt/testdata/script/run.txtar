@@ -1,0 +1,41 @@
+# all commands pass -> exit 0, header + output present
+exec liszt run pre-commit
+stdout '== run pre-commit =='
+stdout 'hello-pre-commit'
+
+# a failing command -> non-zero exit, FAILED + hint on stderr
+! exec liszt run failing
+stderr 'FAILED:'
+stderr 'hint: fix the thing'
+
+# missing config file -> exit 1
+! exec liszt run pre-commit --config does-not-exist.toml
+stderr 'read does-not-exist.toml'
+
+# unknown target -> exit 1
+! exec liszt run ghost
+stderr 'no \[run\.ghost\] target'
+
+# disabled target -> exit 0, no header printed
+exec liszt run off
+! stdout '== run off =='
+
+# --config override resolves an alternate file
+exec liszt run only --config alt/liszt.toml
+stdout 'from-alt'
+
+-- .liszt/liszt.toml --
+[run.pre-commit]
+cmd = ["echo hello-pre-commit"]
+
+[run.failing]
+cmd = ["false"]
+fail_hint = "fix the thing"
+
+[run.off]
+cmd = ["echo should-not-run"]
+enabled = false
+
+-- alt/liszt.toml --
+[run.only]
+cmd = ["echo from-alt"]
