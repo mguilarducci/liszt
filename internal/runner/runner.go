@@ -1,4 +1,4 @@
-// Package runner executes named command groups declared in .liszt/liszt.toml.
+// Package runner executes named task groups declared in .liszt/liszt.toml.
 package runner
 
 import (
@@ -11,16 +11,16 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// Target is one [run.<name>] table: a group of shell commands.
+// Target is one [tasks.<name>] table: a group of shell commands.
 type Target struct {
-	Cmd      []string `toml:"cmd"`
+	Commands []string `toml:"run"`
 	FailHint string   `toml:"fail_hint"`
 	Enabled  *bool    `toml:"enabled"` // nil => enabled
 }
 
-// Config models a .liszt/liszt.toml run section.
+// Config models a .liszt/liszt.toml tasks section.
 type Config struct {
-	Run map[string]Target `toml:"run"`
+	Tasks map[string]Target `toml:"tasks"`
 }
 
 // Load reads and decodes path. A missing or unreadable file, or malformed
@@ -39,7 +39,7 @@ func Load(path string) (*Config, error) {
 
 // Target returns the named target and whether it exists.
 func (c *Config) Target(name string) (Target, bool) {
-	t, ok := c.Run[name]
+	t, ok := c.Tasks[name]
 	return t, ok
 }
 
@@ -58,8 +58,8 @@ func (t Target) Run(name string, stdout, stderr io.Writer) int {
 	if !t.isEnabled() {
 		return 0
 	}
-	if len(t.Cmd) == 0 {
-		fmt.Fprintf(stderr, "error: [run.%s] has empty cmd\n", name)
+	if len(t.Commands) == 0 {
+		fmt.Fprintf(stderr, "error: [tasks.%s] has empty run\n", name)
 		return 1
 	}
 
@@ -68,7 +68,7 @@ func (t Target) Run(name string, stdout, stderr io.Writer) int {
 	failCode := 0
 	failCmd := ""
 	var failErr error
-	for _, c := range t.Cmd {
+	for _, c := range t.Commands {
 		cmd := exec.Command("bash", "-c", c)
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr

@@ -23,8 +23,8 @@ func writeTOML(t *testing.T, body string) string {
 func TestLoad_Valid(t *testing.T) {
 	t.Parallel()
 	path := writeTOML(t, `
-[run.pre-commit]
-cmd = ["echo a", "echo b"]
+[tasks.pre-commit]
+run = ["echo a", "echo b"]
 fail_hint = "do the thing"
 `)
 	cfg, err := Load(path)
@@ -35,8 +35,8 @@ fail_hint = "do the thing"
 	if !ok {
 		t.Fatalf("Target(pre-commit) ok=false")
 	}
-	if len(target.Cmd) != 2 || target.Cmd[0] != "echo a" {
-		t.Errorf("unexpected Cmd: %#v", target.Cmd)
+	if len(target.Commands) != 2 || target.Commands[0] != "echo a" {
+		t.Errorf("unexpected Commands: %#v", target.Commands)
 	}
 	if target.FailHint != "do the thing" {
 		t.Errorf("unexpected FailHint: %q", target.FailHint)
@@ -58,17 +58,17 @@ func TestLoad_MalformedTOML(t *testing.T) {
 	}
 }
 
-func TestLoad_CmdWrongType(t *testing.T) {
+func TestLoad_RunWrongType(t *testing.T) {
 	t.Parallel()
-	path := writeTOML(t, "[run.x]\ncmd = \"bare string\"\n")
+	path := writeTOML(t, "[tasks.x]\nrun = \"bare string\"\n")
 	if _, err := Load(path); err == nil {
-		t.Fatal("Load with string cmd should error (must be array)")
+		t.Fatal("Load with string run should error (must be array)")
 	}
 }
 
 func TestTarget_Miss(t *testing.T) {
 	t.Parallel()
-	path := writeTOML(t, "[run.x]\ncmd = [\"echo hi\"]\n")
+	path := writeTOML(t, "[tasks.x]\nrun = [\"echo hi\"]\n")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -83,7 +83,7 @@ func boolPtr(b bool) *bool { return &b }
 func TestRun_Disabled(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
-	tgt := Target{Cmd: []string{"echo nope"}, Enabled: boolPtr(false)}
+	tgt := Target{Commands: []string{"echo nope"}, Enabled: boolPtr(false)}
 	if code := tgt.Run("x", &out, &errOut); code != 0 {
 		t.Errorf("disabled target should return 0, got %d", code)
 	}
@@ -92,22 +92,22 @@ func TestRun_Disabled(t *testing.T) {
 	}
 }
 
-func TestRun_EmptyCmd(t *testing.T) {
+func TestRun_EmptyRun(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
-	tgt := Target{Cmd: nil}
+	tgt := Target{Commands: nil}
 	if code := tgt.Run("x", &out, &errOut); code != 1 {
-		t.Errorf("empty cmd should return 1, got %d", code)
+		t.Errorf("empty run should return 1, got %d", code)
 	}
-	if !strings.Contains(errOut.String(), "empty cmd") {
-		t.Errorf("expected empty cmd message, got %q", errOut.String())
+	if !strings.Contains(errOut.String(), "empty run") {
+		t.Errorf("expected empty run message, got %q", errOut.String())
 	}
 }
 
 func TestRun_AllPass(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
-	tgt := Target{Cmd: []string{"echo first", "echo second"}}
+	tgt := Target{Commands: []string{"echo first", "echo second"}}
 	if code := tgt.Run("pre-commit", &out, &errOut); code != 0 {
 		t.Errorf("all-pass should return 0, got %d", code)
 	}
@@ -125,7 +125,7 @@ func TestRun_RetainsFirstFailure(t *testing.T) {
 	var out, errOut bytes.Buffer
 	// First command exits 3, second exits 4; all run, first failure (3) retained.
 	tgt := Target{
-		Cmd:      []string{"exit 3", "echo ran-anyway", "exit 4"},
+		Commands: []string{"exit 3", "echo ran-anyway", "exit 4"},
 		FailHint: "fix me",
 	}
 	code := tgt.Run("x", &out, &errOut)
@@ -147,7 +147,7 @@ func TestRun_RetainsFirstFailure(t *testing.T) {
 func TestRun_NoHintWhenUnset(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
-	tgt := Target{Cmd: []string{"exit 1"}}
+	tgt := Target{Commands: []string{"exit 1"}}
 	tgt.Run("x", &out, &errOut)
 	if strings.Contains(errOut.String(), "hint:") {
 		t.Errorf("no fail_hint set, should not print hint line: %q", errOut.String())
@@ -158,7 +158,7 @@ func TestRun_CommandNotFound(t *testing.T) {
 	t.Parallel()
 	var out, errOut bytes.Buffer
 	// bash -c of a non-existent binary: bash returns 127 for an unknown command.
-	tgt := Target{Cmd: []string{"this-binary-does-not-exist-xyz"}}
+	tgt := Target{Commands: []string{"this-binary-does-not-exist-xyz"}}
 	if code := tgt.Run("x", &out, &errOut); code != 127 {
 		t.Errorf("command-not-found should map to bash exit 127, got %d", code)
 	}
@@ -166,7 +166,7 @@ func TestRun_CommandNotFound(t *testing.T) {
 
 func TestLoad_EnabledDecodes(t *testing.T) {
 	t.Parallel()
-	path := writeTOML(t, "[run.x]\ncmd = [\"echo hi\"]\nenabled = false\n")
+	path := writeTOML(t, "[tasks.x]\nrun = [\"echo hi\"]\nenabled = false\n")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)

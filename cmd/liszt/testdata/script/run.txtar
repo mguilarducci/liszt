@@ -14,7 +14,7 @@ stderr 'read does-not-exist.toml'
 
 # unknown target -> exit 1
 ! exec liszt run ghost
-stderr 'no \[run\.ghost\] target'
+stderr 'no \[tasks\.ghost\] target'
 
 # disabled target -> exit 0, no header printed
 exec liszt run off
@@ -25,17 +25,17 @@ exec liszt run only --config alt/liszt.toml
 stdout 'from-alt'
 
 -- .liszt/liszt.toml --
-[run.pre-commit]
-cmd = ["echo hello-pre-commit"]
+[tasks.pre-commit]
+run = ["echo hello-pre-commit"]
 
-[run.failing]
-cmd = ["false"]
+[tasks.failing]
+run = ["false"]
 fail_hint = "fix the thing"
 
-[run.off]
-cmd = ["echo should-not-run"]
+[tasks.off]
+run = ["echo should-not-run"]
 enabled = false
 
 -- alt/liszt.toml --
-[run.only]
-cmd = ["echo from-alt"]
+[tasks.only]
+run = ["echo from-alt"]
