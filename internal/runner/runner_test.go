@@ -2,6 +2,7 @@ package runner
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,5 +175,12 @@ func TestLoad_EnabledDecodes(t *testing.T) {
 	tgt, _ := cfg.Target("x")
 	if tgt.Enabled == nil || *tgt.Enabled != false {
 		t.Errorf("expected enabled=false to decode, got %v", tgt.Enabled)
+	}
+}
+
+func TestExitCode_NonExitError(t *testing.T) {
+	t.Parallel()
+	if got := exitCode(errors.New("not an exit error")); got != 1 {
+		t.Errorf("non-ExitError should map to 1, got %d", got)
 	}
 }
