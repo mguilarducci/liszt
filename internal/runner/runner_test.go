@@ -212,3 +212,19 @@ func TestRun_ForwardsArgAsDollarOne(t *testing.T) {
 		t.Errorf("expected $1 forwarded as %q, got %q", "hello", out.String())
 	}
 }
+
+func TestRun_ForwardsAllArgsToEveryCommand(t *testing.T) {
+	t.Parallel()
+	var out, errOut bytes.Buffer
+	tgt := Target{Commands: []string{`printf 'all:%s\n' "$@"`, `printf 'second:%s\n' "$1"`}}
+	if code := tgt.Run("x", []string{"a", "b"}, &out, &errOut); code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	s := out.String()
+	if !strings.Contains(s, "all:a") || !strings.Contains(s, "b") {
+		t.Errorf("expected $@ to expand all args, got %q", s)
+	}
+	if !strings.Contains(s, "second:a") {
+		t.Errorf("expected $1 available in the second command, got %q", s)
+	}
+}
