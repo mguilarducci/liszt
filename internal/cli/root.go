@@ -43,7 +43,7 @@ func init() {
 // matches the in-app render package. Callers should pass a
 // context.Background() unless they need cancellation semantics.
 func Execute(ctx context.Context) error {
-	if err := fang.Execute(ctx, rootCmd, fang.WithColorSchemeFunc(gleamColorScheme)); err != nil {
+	if err := fang.Execute(ctx, rootCmd, fang.WithColorSchemeFunc(gleamColorScheme), fang.WithVersion(version.Version)); err != nil {
 		return fmt.Errorf("execute: %w", err)
 	}
 	return nil
