@@ -1,0 +1,8 @@
+# bare `liszt` (no subcommand) prints help and lists surviving verbs
+env NO_COLOR=1
+exec liszt
+stdout 'liszt'
+stdout 'run'
+stdout 'version'
+! stdout '  plugin'
+! stdout '  outdated'
