@@ -17,7 +17,7 @@ lint:
 	golangci-lint run
 
 cover: test
-	go-test-coverage --config=.testcoverage.yml
+	go tool cover -func=$(COVER)
 
 clean:
 	rm -rf bin $(COVER)
