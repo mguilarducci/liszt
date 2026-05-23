@@ -162,10 +162,13 @@ coverage:
       default:
         target: 90%
         threshold: 0%
-    patch: false
+    patch:
+      default:
+        target: 90%
 ```
-`patch: false` disables per-PR patch gating — only the project total is gated,
-per spec. File/package thresholds omitted.
+`project` gates the overall total at 90%. `patch` gates new/changed lines at 90%
+so a PR can't add untested code even when the total stays high. File/package
+thresholds omitted.
 
 ## Makefile additions
 

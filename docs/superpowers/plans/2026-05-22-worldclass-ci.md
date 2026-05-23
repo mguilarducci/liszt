@@ -150,11 +150,14 @@ coverage:
       default:
         target: 90%
         threshold: 0%
-    patch: false
+    patch:
+      default:
+        target: 90%
 ```
 
-`patch: false` disables per-PR patch-coverage gating — only the project total is
-gated, per spec.
+`patch` is enabled: new/changed lines in a PR must be >=90% covered, so untested
+new code is blocked even when the project total stays high. `project` gates the
+overall total at 90%.
 
 - [ ] **Step 2: Sanity-check coverage locally (Go toolchain only — no installs)**
 
