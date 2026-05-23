@@ -56,10 +56,11 @@ Tool versions: golangci-lint `v2.12.2` (passed to action `version:`), Go from
 
 ## ci.yml
 
-**Triggers:** `push` to `main`, `pull_request`.
+**Triggers:** `push` to `main`, `pull_request` to `main`.
 **Top-level permissions:** `contents: read` (least privilege).
 **Concurrency:** group by `${{ github.workflow }}-${{ github.ref }}`,
-`cancel-in-progress: true` — stale PR runs are cancelled.
+`cancel-in-progress: ${{ github.event_name == 'pull_request' }}` — supersede stale
+PR runs, but let every `main` commit finish so its CodeQL/coverage baseline is complete.
 
 ### Job: `lint` (ubuntu-latest)
 Separate job per golangci-lint-action's official recommendation (parallelism).
