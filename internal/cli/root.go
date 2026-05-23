@@ -8,10 +8,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/fang"
-	"github.com/spf13/cobra"
-
 	"github.com/mguilarducci/liszt/internal/render"
 	"github.com/mguilarducci/liszt/internal/version"
+	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{

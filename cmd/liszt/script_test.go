@@ -6,21 +6,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rogpeppe/go-internal/testscript"
-
 	"github.com/mguilarducci/liszt/internal/cli"
+	"github.com/rogpeppe/go-internal/testscript"
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(testscript.RunMain(m, map[string]func() int{
-		"liszt": func() int {
+	testscript.Main(m, map[string]func(){
+		"liszt": func() {
 			if err := cli.Execute(context.Background()); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				return 1
+				_, _ = fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
 			}
-			return 0
 		},
-	}))
+	})
 }
 
 func TestScripts(t *testing.T) {
