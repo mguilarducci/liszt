@@ -1,4 +1,4 @@
-BIN := bin/liszt
+BIN := bin/liszt-dev
 PKG := ./cmd/liszt
 COVER := cover.out
 
