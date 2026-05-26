@@ -177,7 +177,8 @@ func TestRunHook_RunsSegmentsInOrderWithHeaders(t *testing.T) {
 	if !strings.Contains(s, "== pre-commit.gleam ==") || !strings.Contains(s, "from-gleam") {
 		t.Errorf("missing gleam output/header in %q", s)
 	}
-	if strings.Index(s, "from-general") > strings.Index(s, "from-gleam") {
+	gi, li := strings.Index(s, "from-general"), strings.Index(s, "from-gleam")
+	if gi == -1 || li == -1 || gi > li {
 		t.Errorf("general should run before gleam; out=%q", s)
 	}
 }
@@ -216,6 +217,12 @@ func TestRunHook_RetainsFirstFailureAcrossSegments(t *testing.T) {
 	if !strings.Contains(es, "FAILED:") || !strings.Contains(es, "exit 3") || !strings.Contains(es, "hint: fix me") {
 		t.Errorf("expected FAILED+exit 3+hint, got %q", es)
 	}
+	if !strings.Contains(out.String(), "== h.go ==") {
+		t.Errorf("second segment should still run after first fails; out=%q", out.String())
+	}
+	if !strings.Contains(es, "exit 4") {
+		t.Errorf("expected the go segment's own FAILED line (exit 4); got %q", es)
+	}
 }
 
 func TestRunHook_DisabledSegmentSkipped(t *testing.T) {
@@ -253,7 +260,9 @@ func TestRunHook_NoHintWhenUnset(t *testing.T) {
 	t.Parallel()
 	cfg := Config{"h": Hook{"general": {Commands: []string{"exit 1"}}}}
 	var out, errOut bytes.Buffer
-	cfg.RunHook("h", []string{"general"}, nil, &out, &errOut)
+	if code := cfg.RunHook("h", []string{"general"}, nil, &out, &errOut); code == 0 {
+		t.Errorf("failing command should return non-zero")
+	}
 	if strings.Contains(errOut.String(), "hint:") {
 		t.Errorf("no fail_hint set, should not print hint: %q", errOut.String())
 	}

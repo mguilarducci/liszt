@@ -49,7 +49,10 @@ func Load(path string) (Config, error) {
 // Resolve returns the ordered segment names to run for a hook: "general" first
 // when present, then each requested lang in order. Naming "general" explicitly
 // is a no-op (it is already included). Errors if the hook is absent, a requested
-// lang is absent, or nothing would run.
+// lang is absent, or no segment is selected at all (no general segment and no
+// langs requested). A hook whose only selected segments are disabled still
+// resolves successfully and RunHook returns 0: disabling a segment is how it is
+// turned off, so an all-disabled hook is a successful no-op, not an error.
 func (c Config) Resolve(name string, langs []string) ([]string, error) {
 	hook, ok := c[name]
 	if !ok {
