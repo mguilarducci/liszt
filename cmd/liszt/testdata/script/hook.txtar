@@ -1,0 +1,68 @@
+# general only -> header + general output, exit 0
+exec liszt hook pre-commit
+stdout '== pre-commit.general =='
+stdout 'hello-general'
+! stdout '== pre-commit.gleam =='
+
+# general + named lang, in order
+exec liszt hook pre-commit gleam
+stdout '== pre-commit.general =='
+stdout '== pre-commit.gleam =='
+stdout 'hello-gleam'
+
+# git args after -- reach commands as positional params
+exec liszt hook echoarg -- WORLD
+stdout 'got:WORLD'
+
+# a failing command -> non-zero exit, FAILED + hint on stderr
+! exec liszt hook failing
+stderr 'FAILED:'
+stderr 'hint: fix the thing'
+
+# missing config file -> exit 1
+! exec liszt hook pre-commit --config does-not-exist.toml
+stderr 'read does-not-exist.toml'
+
+# unknown hook -> exit 1
+! exec liszt hook ghost
+stderr 'no \[ghost\] hook'
+
+# unknown segment -> exit 1
+! exec liszt hook pre-commit rust
+stderr 'no \[pre-commit\.rust\] segment'
+
+# disabled segment silent, enabled sibling still runs -> exit 0
+exec liszt hook withoff go
+! stdout '== withoff.general =='
+! stdout 'should-not-run'
+stdout '== withoff.go =='
+stdout 'on-runs'
+
+# --config override resolves an alternate file
+exec liszt hook only --config alt/hooks.toml
+stdout 'from-alt'
+
+-- .liszt/hooks.toml --
+[pre-commit.general]
+run = ["echo hello-general"]
+
+[pre-commit.gleam]
+run = ["echo hello-gleam"]
+
+[failing.general]
+run = ["false"]
+fail_hint = "fix the thing"
+
+[echoarg.general]
+run = ["printf 'got:%s' \"$1\""]
+
+[withoff.general]
+run = ["echo should-not-run"]
+enabled = false
+
+[withoff.go]
+run = ["echo on-runs"]
+
+-- alt/hooks.toml --
+[only.general]
+run = ["echo from-alt"]
