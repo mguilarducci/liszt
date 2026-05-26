@@ -2,7 +2,7 @@
 env NO_COLOR=1
 exec liszt --help
 stdout 'liszt'
-stdout 'run'
+stdout 'hook'
 stdout 'version'
 ! stdout '  plugin'
 ! stdout '  outdated'

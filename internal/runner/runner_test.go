@@ -13,7 +13,7 @@ import (
 func writeTOML(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "liszt.toml")
+	path := filepath.Join(dir, "hooks.toml")
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
@@ -23,23 +23,31 @@ func writeTOML(t *testing.T, body string) string {
 func TestLoad_Valid(t *testing.T) {
 	t.Parallel()
 	path := writeTOML(t, `
-[tasks.pre-commit]
+[pre-commit.general]
 run = ["echo a", "echo b"]
 fail_hint = "do the thing"
+
+[pre-commit.gleam]
+run = ["gleam test"]
+enabled = false
 `)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	target, ok := cfg.Target("pre-commit")
+	hook, ok := cfg["pre-commit"]
 	if !ok {
-		t.Fatalf("Target(pre-commit) ok=false")
+		t.Fatalf(`cfg["pre-commit"] ok=false`)
 	}
-	if len(target.Commands) != 2 || target.Commands[0] != "echo a" {
-		t.Errorf("unexpected Commands: %#v", target.Commands)
+	gen := hook["general"]
+	if len(gen.Commands) != 2 || gen.Commands[0] != "echo a" {
+		t.Errorf("unexpected general.Commands: %#v", gen.Commands)
 	}
-	if target.FailHint != "do the thing" {
-		t.Errorf("unexpected FailHint: %q", target.FailHint)
+	if gen.FailHint != "do the thing" {
+		t.Errorf("unexpected FailHint: %q", gen.FailHint)
+	}
+	if g := hook["gleam"]; g.Enabled == nil || *g.Enabled != false {
+		t.Errorf("expected gleam enabled=false to decode, got %v", g.Enabled)
 	}
 }
 
@@ -52,96 +60,153 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_MalformedTOML(t *testing.T) {
 	t.Parallel()
-	path := writeTOML(t, "this is = = not toml")
-	if _, err := Load(path); err == nil {
+	if _, err := Load(writeTOML(t, "this is = = not toml")); err == nil {
 		t.Fatal("Load on malformed TOML should error")
 	}
 }
 
 func TestLoad_RunWrongType(t *testing.T) {
 	t.Parallel()
-	path := writeTOML(t, "[tasks.x]\nrun = \"bare string\"\n")
-	if _, err := Load(path); err == nil {
+	if _, err := Load(writeTOML(t, "[h.general]\nrun = \"bare string\"\n")); err == nil {
 		t.Fatal("Load with string run should error (must be array)")
 	}
 }
 
-func TestTarget_Miss(t *testing.T) {
-	t.Parallel()
-	path := writeTOML(t, "[tasks.x]\nrun = [\"echo hi\"]\n")
-	cfg, err := Load(path)
+func loadCfg(t *testing.T, body string) Config {
+	t.Helper()
+	cfg, err := Load(writeTOML(t, body))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if _, ok := cfg.Target("ghost"); ok {
-		t.Error("Target(ghost) should be ok=false")
+	return cfg
+}
+
+const resolveFixture = `
+[pre-commit.general]
+run = ["echo g"]
+[pre-commit.gleam]
+run = ["echo gl"]
+[pre-commit.go]
+run = ["echo go"]
+[no-general.gleam]
+run = ["echo x"]
+`
+
+func TestResolve_GeneralFirstThenLangsInOrder(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	got, err := cfg.Resolve("pre-commit", []string{"go", "gleam"})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	want := []string{"general", "go", "gleam"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("order = %v, want %v", got, want)
+	}
+}
+
+func TestResolve_GeneralOnlyWhenNoLangs(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	got, err := cfg.Resolve("pre-commit", nil)
+	if err != nil || len(got) != 1 || got[0] != "general" {
+		t.Errorf("got %v err %v, want [general]", got, err)
+	}
+}
+
+func TestResolve_NoGeneralUsesLangsOnly(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	got, err := cfg.Resolve("no-general", []string{"gleam"})
+	if err != nil || len(got) != 1 || got[0] != "gleam" {
+		t.Errorf("got %v err %v, want [gleam]", got, err)
+	}
+}
+
+func TestResolve_NamingGeneralIsNoop(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	got, err := cfg.Resolve("pre-commit", []string{"general", "go"})
+	want := []string{"general", "go"}
+	if err != nil || strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("got %v err %v, want %v (general not duplicated)", got, err, want)
+	}
+}
+
+func TestResolve_MissingHook(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	if _, err := cfg.Resolve("ghost", nil); err == nil {
+		t.Fatal("Resolve on missing hook should error")
+	}
+}
+
+func TestResolve_MissingSegment(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	if _, err := cfg.Resolve("pre-commit", []string{"rust"}); err == nil {
+		t.Fatal("Resolve on missing segment should error")
+	}
+}
+
+func TestResolve_NothingToRun(t *testing.T) {
+	t.Parallel()
+	cfg := loadCfg(t, resolveFixture)
+	if _, err := cfg.Resolve("no-general", nil); err == nil {
+		t.Fatal("Resolve with no general and no langs should error")
 	}
 }
 
 func boolPtr(b bool) *bool { return &b }
 
-func TestRun_Disabled(t *testing.T) {
+func TestRunHook_RunsSegmentsInOrderWithHeaders(t *testing.T) {
 	t.Parallel()
+	cfg := Config{"pre-commit": Hook{
+		"general": {Commands: []string{"echo from-general"}},
+		"gleam":   {Commands: []string{"echo from-gleam"}},
+	}}
 	var out, errOut bytes.Buffer
-	tgt := Target{Commands: []string{"echo nope"}, Enabled: boolPtr(false)}
-	if code := tgt.Run("x", nil, &out, &errOut); code != 0 {
-		t.Errorf("disabled target should return 0, got %d", code)
-	}
-	if out.Len() != 0 {
-		t.Errorf("disabled target should print nothing, got %q", out.String())
-	}
-}
-
-func TestRun_EmptyRun(t *testing.T) {
-	t.Parallel()
-	var out, errOut bytes.Buffer
-	tgt := Target{Commands: nil}
-	if code := tgt.Run("x", nil, &out, &errOut); code != 1 {
-		t.Errorf("empty run should return 1, got %d", code)
-	}
-	if !strings.Contains(errOut.String(), "empty run") {
-		t.Errorf("expected empty run message, got %q", errOut.String())
-	}
-}
-
-func TestRun_AllPass(t *testing.T) {
-	t.Parallel()
-	var out, errOut bytes.Buffer
-	tgt := Target{Commands: []string{"echo first", "echo second"}}
-	if code := tgt.Run("pre-commit", nil, &out, &errOut); code != 0 {
-		t.Errorf("all-pass should return 0, got %d", code)
+	code := cfg.RunHook("pre-commit", []string{"general", "gleam"}, nil, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("all-pass should return 0, got %d", code)
 	}
 	s := out.String()
-	if !strings.Contains(s, "== run pre-commit ==") {
-		t.Errorf("missing header in %q", s)
+	if !strings.Contains(s, "== pre-commit.general ==") || !strings.Contains(s, "from-general") {
+		t.Errorf("missing general output/header in %q", s)
 	}
-	if !strings.Contains(s, "first") || !strings.Contains(s, "second") {
-		t.Errorf("command output missing in %q", s)
+	if !strings.Contains(s, "== pre-commit.gleam ==") || !strings.Contains(s, "from-gleam") {
+		t.Errorf("missing gleam output/header in %q", s)
 	}
-}
-
-func TestRun_ForwardsArgsOnFailurePath(t *testing.T) {
-	t.Parallel()
-	var out, errOut bytes.Buffer
-	// $1 is forwarded into the failing command itself: exit "$1" -> exit 7.
-	tgt := Target{Commands: []string{`exit "$1"`}}
-	if code := tgt.Run("x", []string{"7"}, &out, &errOut); code != 7 {
-		t.Errorf("expected $1 forwarded into failing command (exit 7), got %d", code)
-	}
-	if !strings.Contains(errOut.String(), "FAILED:") {
-		t.Errorf("expected FAILED line on failure path, got %q", errOut.String())
+	gi, li := strings.Index(s, "from-general"), strings.Index(s, "from-gleam")
+	if gi == -1 || li == -1 || gi > li {
+		t.Errorf("general should run before gleam; out=%q", s)
 	}
 }
 
-func TestRun_RetainsFirstFailure(t *testing.T) {
+func TestRunHook_ForwardsArgsToEverySegment(t *testing.T) {
 	t.Parallel()
+	cfg := Config{"h": Hook{
+		"general": {Commands: []string{`printf 'g:%s\n' "$1"`}},
+		"go":      {Commands: []string{`printf 'go:%s\n' "$@"`}},
+	}}
 	var out, errOut bytes.Buffer
-	// First command exits 3, second exits 4; all run, first failure (3) retained.
-	tgt := Target{
-		Commands: []string{"exit 3", "echo ran-anyway", "exit 4"},
-		FailHint: "fix me",
+	if code := cfg.RunHook("h", []string{"general", "go"}, []string{"X", "Y"}, &out, &errOut); code != 0 {
+		t.Fatalf("expected 0, got %d", code)
 	}
-	code := tgt.Run("x", nil, &out, &errOut)
+	s := out.String()
+	if !strings.Contains(s, "g:X") || !strings.Contains(s, "go:X") || !strings.Contains(s, "Y") {
+		t.Errorf("args not forwarded to every segment: %q", s)
+	}
+}
+
+func TestRunHook_RetainsFirstFailureAcrossSegments(t *testing.T) {
+	t.Parallel()
+	cfg := Config{"h": Hook{
+		"general": {Commands: []string{"exit 3", "echo ran-anyway"}, FailHint: "fix me"},
+		"go":      {Commands: []string{"exit 4"}},
+	}}
+	var out, errOut bytes.Buffer
+	code := cfg.RunHook("h", []string{"general", "go"}, nil, &out, &errOut)
 	if code != 3 {
 		t.Errorf("expected retained first failure exit 3, got %d", code)
 	}
@@ -149,44 +214,66 @@ func TestRun_RetainsFirstFailure(t *testing.T) {
 		t.Errorf("later command should still run; out=%q", out.String())
 	}
 	es := errOut.String()
-	if !strings.Contains(es, "FAILED:") || !strings.Contains(es, "exit 3") {
-		t.Errorf("expected FAILED line with exit 3, got %q", es)
+	if !strings.Contains(es, "FAILED:") || !strings.Contains(es, "exit 3") || !strings.Contains(es, "hint: fix me") {
+		t.Errorf("expected FAILED+exit 3+hint, got %q", es)
 	}
-	if !strings.Contains(es, "hint: fix me") {
-		t.Errorf("expected fail_hint, got %q", es)
+	if !strings.Contains(out.String(), "== h.go ==") {
+		t.Errorf("second segment should still run after first fails; out=%q", out.String())
+	}
+	if !strings.Contains(es, "exit 4") {
+		t.Errorf("expected the go segment's own FAILED line (exit 4); got %q", es)
 	}
 }
 
-func TestRun_NoHintWhenUnset(t *testing.T) {
+func TestRunHook_DisabledSegmentSkipped(t *testing.T) {
 	t.Parallel()
+	cfg := Config{"h": Hook{
+		"general": {Commands: []string{"echo nope"}, Enabled: boolPtr(false)},
+		"go":      {Commands: []string{"echo yes"}},
+	}}
 	var out, errOut bytes.Buffer
-	tgt := Target{Commands: []string{"exit 1"}}
-	tgt.Run("x", nil, &out, &errOut)
+	if code := cfg.RunHook("h", []string{"general", "go"}, nil, &out, &errOut); code != 0 {
+		t.Fatalf("expected 0, got %d", code)
+	}
+	s := out.String()
+	if strings.Contains(s, "nope") || strings.Contains(s, "== h.general ==") {
+		t.Errorf("disabled segment should produce no output: %q", s)
+	}
+	if !strings.Contains(s, "yes") {
+		t.Errorf("enabled segment should still run: %q", s)
+	}
+}
+
+func TestRunHook_EmptyRunErrors(t *testing.T) {
+	t.Parallel()
+	cfg := Config{"h": Hook{"general": {Commands: nil}}}
+	var out, errOut bytes.Buffer
+	if code := cfg.RunHook("h", []string{"general"}, nil, &out, &errOut); code != 1 {
+		t.Errorf("empty run should return 1, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "empty run") {
+		t.Errorf("expected empty-run message, got %q", errOut.String())
+	}
+}
+
+func TestRunHook_NoHintWhenUnset(t *testing.T) {
+	t.Parallel()
+	cfg := Config{"h": Hook{"general": {Commands: []string{"exit 1"}}}}
+	var out, errOut bytes.Buffer
+	if code := cfg.RunHook("h", []string{"general"}, nil, &out, &errOut); code == 0 {
+		t.Errorf("failing command should return non-zero")
+	}
 	if strings.Contains(errOut.String(), "hint:") {
-		t.Errorf("no fail_hint set, should not print hint line: %q", errOut.String())
+		t.Errorf("no fail_hint set, should not print hint: %q", errOut.String())
 	}
 }
 
-func TestRun_CommandNotFound(t *testing.T) {
+func TestRunHook_CommandNotFound(t *testing.T) {
 	t.Parallel()
+	cfg := Config{"h": Hook{"general": {Commands: []string{"this-binary-does-not-exist-xyz"}}}}
 	var out, errOut bytes.Buffer
-	// bash -c of a non-existent binary: bash returns 127 for an unknown command.
-	tgt := Target{Commands: []string{"this-binary-does-not-exist-xyz"}}
-	if code := tgt.Run("x", nil, &out, &errOut); code != 127 {
-		t.Errorf("command-not-found should map to bash exit 127, got %d", code)
-	}
-}
-
-func TestLoad_EnabledDecodes(t *testing.T) {
-	t.Parallel()
-	path := writeTOML(t, "[tasks.x]\nrun = [\"echo hi\"]\nenabled = false\n")
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	tgt, _ := cfg.Target("x")
-	if tgt.Enabled == nil || *tgt.Enabled != false {
-		t.Errorf("expected enabled=false to decode, got %v", tgt.Enabled)
+	if code := cfg.RunHook("h", []string{"general"}, nil, &out, &errOut); code != 127 {
+		t.Errorf("command-not-found should map to 127, got %d", code)
 	}
 }
 
@@ -200,44 +287,14 @@ func TestExitCode_NonExitError(t *testing.T) {
 func TestFailureLine_ExitError(t *testing.T) {
 	t.Parallel()
 	err := exec.Command("bash", "-c", "exit 2").Run()
-	line := failureLine("exit 2", 2, err)
-	if !strings.Contains(line, "FAILED: exit 2 (exit 2)") {
+	if line := failureLine("exit 2", 2, err); !strings.Contains(line, "FAILED: exit 2 (exit 2)") {
 		t.Errorf("expected exit-code form, got %q", line)
 	}
 }
 
 func TestFailureLine_StartError(t *testing.T) {
 	t.Parallel()
-	line := failureLine("foo", 1, errors.New("boom"))
-	if !strings.Contains(line, "could not start: boom") {
+	if line := failureLine("foo", 1, errors.New("boom")); !strings.Contains(line, "could not start: boom") {
 		t.Errorf("expected start-failure form, got %q", line)
-	}
-}
-
-func TestRun_ForwardsArgAsDollarOne(t *testing.T) {
-	t.Parallel()
-	var out, errOut bytes.Buffer
-	tgt := Target{Commands: []string{`printf '%s' "$1"`}}
-	if code := tgt.Run("x", []string{"hello"}, &out, &errOut); code != 0 {
-		t.Fatalf("expected exit 0, got %d", code)
-	}
-	if !strings.Contains(out.String(), "hello") {
-		t.Errorf("expected $1 forwarded as %q, got %q", "hello", out.String())
-	}
-}
-
-func TestRun_ForwardsAllArgsToEveryCommand(t *testing.T) {
-	t.Parallel()
-	var out, errOut bytes.Buffer
-	tgt := Target{Commands: []string{`printf 'all:%s\n' "$@"`, `printf 'second:%s\n' "$1"`}}
-	if code := tgt.Run("x", []string{"a", "b"}, &out, &errOut); code != 0 {
-		t.Fatalf("expected exit 0, got %d", code)
-	}
-	s := out.String()
-	if !strings.Contains(s, "all:a") || !strings.Contains(s, "b") {
-		t.Errorf("expected $@ to expand all args, got %q", s)
-	}
-	if !strings.Contains(s, "second:a") {
-		t.Errorf("expected $1 available in the second command, got %q", s)
 	}
 }

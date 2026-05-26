@@ -1,0 +1,11 @@
+[pre-commit.general]
+run = ["git diff --check"]
+fail_hint = "remove trailing whitespace / conflict markers"
+
+[pre-commit.go]
+run = [
+  "go vet ./cmd/liszt ./internal/...",
+  "golangci-lint run",
+  "go test ./... -race -covermode=atomic -coverpkg=./...",
+]
+fail_hint = "run 'make vet lint test' to reproduce locally"
