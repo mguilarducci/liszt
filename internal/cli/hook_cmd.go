@@ -31,14 +31,20 @@ var hookCmd = &cobra.Command{
 // splitHookArgs partitions cobra positional args using the index of "--" (dash,
 // as reported by cobra.Command.ArgsLenAtDash; -1 when absent). args[0] is the
 // hook name. With no "--", every remaining arg is a lang selector. With "--" at
-// index d, args[1:d] are lang selectors and args[d:] are git args forwarded to
-// the commands.
+// index d (d >= 1), args[1:d] are lang selectors and args[d:] are git args
+// forwarded to the commands. A leading "--" (d == 0, i.e. "--" before the hook
+// name) is malformed; it yields no langs and forwards the remaining args, so the
+// name slot is never sliced out of range.
 func splitHookArgs(args []string, dash int) (name string, langs, gitArgs []string) {
 	name = args[0]
-	if dash < 0 {
+	switch {
+	case dash < 0:
 		return name, args[1:], nil
+	case dash < 1:
+		return name, nil, args[1:]
+	default:
+		return name, args[1:dash], args[dash:]
 	}
-	return name, args[1:dash], args[dash:]
 }
 
 func init() {

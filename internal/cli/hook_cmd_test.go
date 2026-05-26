@@ -27,6 +27,8 @@ func TestSplitHookArgs(t *testing.T) {
 		{"dash, langs and gitargs", []string{"pre-commit", "gleam", "a", "b"}, 2, "pre-commit", "gleam", "a,b"},
 		{"dash, no langs, gitargs", []string{"pre-commit", "a", "b"}, 1, "pre-commit", "", "a,b"},
 		{"dash, no langs, no gitargs", []string{"pre-commit"}, 1, "pre-commit", "", ""},
+		{"dash zero, name only", []string{"pre-commit"}, 0, "pre-commit", "<nil>", ""},
+		{"dash zero, trailing gitargs", []string{"pre-commit", "x"}, 0, "pre-commit", "<nil>", "x"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
